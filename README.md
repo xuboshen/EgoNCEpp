@@ -1,1 +1,1 @@
-# EgoVLP-
+# EgoNCE++
