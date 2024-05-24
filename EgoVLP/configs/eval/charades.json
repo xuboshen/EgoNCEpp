@@ -1,0 +1,79 @@
+{
+    "name": "CharadesEgo_16f",
+    "n_gpu": 8,
+    "arch": {
+        "type": "EgoVLP_lora",
+        "args": {
+            "video_params": {
+                "model": "SpaceTimeTransformer",
+                "arch_config": "base_patch16_224",
+                "num_frames": 16,
+                "pretrained": true,
+                "time_init": "zeros"
+            },
+            "text_params": {
+                "model": "distilbert-base-uncased",
+                "pretrained": true,
+                "input": "text"
+            },
+            "lora_params": {
+                "lora_r": 16,
+                "lora_alpha": 16,
+                "lora_dropout": 0
+            },
+            "projection": "minimal",
+            "load_checkpoint": "pretrained/egovlp.pth"
+        }
+    },
+    "data_loader":
+            {
+                "type": "TextVideoDataLoader",
+                "args":{
+                    "dataset_name": "CharadesEgo",
+                    "data_dir": "/fs/fast/base_path/data/CharadesEgo",
+                    "meta_dir": "/fs/fast/base_path/annotations/CharadesEgo",
+                    "reader": "decord",
+                    "shuffle": false,
+                    "num_workers": 2,
+                    "batch_size": 1,
+                    "split": "test",
+                    "text_params": {
+                        "input": "text"
+                    },
+                    "video_params": {
+                        "input_res": 224,
+                        "num_frames": 16,
+                        "loading": "lax"
+                    }
+                }
+            },
+    "optimizer": {
+        "type": "AdamW",
+        "args":{
+            "lr": 3e-5
+        }
+    },
+    "loss": {
+        "type": "NormSoftmaxLoss",
+        "args": {
+        }
+    },
+    "metrics": [
+        "charades_metrics"
+     ],
+    "trainer": {
+        "epochs": 0,
+        "max_samples_per_epoch": 500000,
+        "save_dir": "results/EgoVLPv3_lora_image900K_video3.8M/eval/zs/charades",
+        "save_period": 2,
+        "verbosity": 2,
+        "monitor": "min val_loss_0",
+        "early_stop": 10,
+        "init_val": true,
+        "neptune": false
+    },
+    "visualizer": {
+        "type": ""
+    }
+
+}

@@ -1,0 +1,83 @@
+{
+    "name": "EgoClip_4f",
+    "n_gpu": 1,
+    "arch": {
+        "type": "FrozenInTime",
+        "args": {
+            "video_params": {
+                "model": "SpaceTimeTransformer",
+                "arch_config": "base_patch16_224",
+                "num_frames": 4,
+                "pretrained": true,
+                "time_init": "zeros"
+            },
+            "text_params": {
+                "model": "roberta-base",
+                "pretrained": true,
+                "input": "text"
+            },
+            "projection": "minimal",
+            "load_checkpoint": "pretrained/EgoVLPv2.pth"
+	}
+    },
+    "data_loader":
+            [
+                {
+                    "type": "MultiDistTextVideoDataLoader",
+                    "args":{
+                        "dataset_name": "EgoClip_HOI",
+                        "data_dir": "/fs/fast/base_path/data/ego4d/down_scale/",
+                        "meta_dir": "/fs/fast/base_path/annotations/egovlpv3",
+                        "reader": "decord_start_end_fastchunk",
+                        "shuffle": true,
+                        "num_workers": 16,
+                        "batch_size": 1,
+                        "split": "train",
+                        "subsample": "mcq",
+                        "text_params": {
+                            "input": "text"
+                        },
+                        "video_params": {
+                            "input_res": 224,
+                            "num_frames": 4,
+                            "loading": "lax"
+                        },
+                        "neg_param": true,
+                        "trainset_name": "egoclip.csv",
+                        "neg_num": 10
+                    }
+                }
+            ],
+    "optimizer": {
+	"type": "AdamW",
+	"args":{
+		"lr": 5e-5,
+		"weight_decay": 0.01,
+		"lr_mult_head": 5,
+		"lr_mult_cross_modal": 5
+	       }
+    },
+    "loss": {
+        "type": "EgoNCE",
+        "args": {
+        }
+    },
+    "metrics": [
+        "egohoi_accuracy_metrics"
+     ],
+    "trainer": {
+        "epochs": 0,
+        "max_samples_per_epoch": 500000,
+        "save_dir": "results/EgoVLPv2_pretrained/EgoHOIBench",
+        "save_period": 1,
+        "verbosity": 2,
+        "monitor": "min val_loss_0",
+        "early_stop": 10,
+        "init_val": true,
+        "neptune": false
+    },
+    "visualizer": {
+        "type": ""
+    }
+
+}

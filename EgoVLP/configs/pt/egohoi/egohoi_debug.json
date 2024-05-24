@@ -1,0 +1,94 @@
+{
+    "name": "EgoClip_4f",
+    "n_gpu": 8,
+    "arch": {
+        "type": "EgoVLP_lora",
+        "args": {
+            "video_params": {
+                "model": "SpaceTimeTransformer",
+                "arch_config": "base_patch16_224",
+                "num_frames": 4,
+                "pretrained": true,
+                "time_init": "zeros"
+            },
+            "load_checkpoint": "pretrained/egovlp.pth",
+            "text_params": {
+                "model": "distilbert-base-uncased",
+                "pretrained": true,
+                "input": "text"
+            },
+            "lora_params": {
+                "lora_r": 16,
+                "lora_alpha": 16,
+                "lora_dropout": 0
+            },
+            "projection": "minimal"
+        }
+    },
+    "data_loader":
+            [
+                {
+                    "type": "MultiDistTextVideoDataLoader",
+                    "args":{
+                        "dataset_name": "EgoClip_HOI",
+                        "data_dir": "/fs/fast/base_path/data/ego4d/down_scale/",
+                        "meta_dir": "/fs/fast/base_path/annotations/egovlpv3",
+                        "reader": "decord_start_end_fastchunk",
+                        "shuffle": true,
+                        "num_workers": 16,
+                        "batch_size": 2,
+                        "split": "train",
+                        "subsample": "mcq",
+                        "text_params": {
+                            "input": "text"
+                        },
+                        "video_params": {
+                            "input_res": 224,
+                            "num_frames": 4,
+                            "loading": "lax",
+                            "egonce": false
+                        },
+                        "neg_param": 1,
+                        "trainset_name": "EgoClip_hardnegHOI.csv",
+                        "neg_num": 10
+                    }
+                }
+            ],
+    "optimizer": {
+        "type": "AdamW",
+        "args":{
+            "lr": 3e-5
+        }
+    },
+    "lr_scheduler": {
+        "type": "CosineLR",
+        "args":{
+            "first_cycle_steps": 2000000,
+            "min_lr": 3e-7,
+            "warmup_steps": 2000
+        }
+    },
+    "loss": {
+        "type": "Hal_SoftmaxLoss",
+        "args": {
+        }
+    },
+    "metrics": [
+        "egohoi_accuracy_metrics"
+     ],
+    "trainer": {
+        "epochs": 10,
+        "max_samples_per_epoch": 100000,
+        "save_dir": "results/EgoHOI/debug",
+        "save_period": 1,
+        "verbosity": 2,
+        "monitor": "min val_loss_0",
+        "early_stop": 10,
+        "init_val": false,
+        "neptune": false
+    },
+    "visualizer": {
+        "type": ""
+    }
+
+}

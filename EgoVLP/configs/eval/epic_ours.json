@@ -1,0 +1,80 @@
+{
+    "name": "EpicKitchens_MIR_4f",
+    "n_gpu": 8,
+    "arch": {
+        "type": "EgoVLP_lora",
+        "args": {
+            "video_params": {
+                "model": "SpaceTimeTransformer",
+                "arch_config": "base_patch16_224",
+                "num_frames": 16,
+                "pretrained": true,
+                "time_init": "zeros"
+            },
+            "text_params": {
+                "model": "distilbert-base-uncased",
+                "pretrained": true,
+                "input": "text"
+            },
+            "lora_params": {
+                "lora_r": 16,
+                "lora_alpha": 16,
+                "lora_dropout": 0
+            },
+            "projection": "minimal",
+            "load_checkpoint": "results/EgoHOI/verb_noun_t2v/lora_10w_3e-5_neg10_abl_batch_size_48/models/0521_03/checkpoint-epoch3.pth"
+        }
+    },
+    "data_loader":
+            {
+                "type": "MultiDistTextVideoDataLoader",
+                "args":{
+                    "dataset_name": "EpicKitchens_MIR",
+                    "data_dir": "/fs/fast/base_path/data/EK100_256p",
+                    "meta_dir": "/fs/fast/base_path/data/EK100_256p/epic-kitchens-100-annotations/retrieval_annotations",
+                    "reader": "cv2_epic",
+                    "shuffle": true,
+                    "num_workers": 16,
+                    "batch_size": 32,
+                    "split": "train",
+                    "text_params": {
+                        "input": "text"
+                    },
+                    "video_params": {
+                        "input_res": 224,
+                        "num_frames": 16,
+                        "loading": "lax"
+                    }
+                }
+            },
+    "optimizer": {
+        "type": "AdamW",
+        "args":{
+            "lr": 3e-5
+        }
+    },
+    "loss": {
+        "type": "MaxMarginRankingLoss",
+        "args": {
+            "margin":0.2
+        }
+    },
+    "metrics": [
+        "mir_metrics"
+     ],
+    "trainer": {
+        "epochs": 0,
+        "max_samples_per_epoch": 500000,
+        "save_dir": "results/EpicKitchens_MIR_16f/vis_full_tuning_ablation",
+        "save_period": 2,
+        "verbosity": 2,
+        "monitor": "min val_loss_0",
+        "early_stop": 10,
+        "init_val": true,
+        "neptune": false
+    },
+    "visualizer": {
+        "type": ""
+    }
+
+}
