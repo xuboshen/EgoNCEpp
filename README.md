@@ -53,16 +53,7 @@ The annotations can be found in [EgoHOIBench-anonymous](https://www.dropbox.com/
 ## Models
 
 MODEL++ denotes using EgoNCE++ to continue to pretrain the original MODEL.
-<style type="text/css">
-.tg  {border-collapse:collapse;border-spacing:0;}
-.tg td{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
-  overflow:hidden;padding:10px 5px;word-break:normal;}
-.tg th{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
-  font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
-.tg .tg-n9g5{background-color:#ffffff;border-color:inherit;color:#000000;text-align:left;vertical-align:top}
-.tg .tg-af47{background-color:#ffffff;border-color:inherit;color:#000000;text-align:center;vertical-align:top}
-.tg .tg-f39b{background-color:#ecf4ff;border-color:inherit;color:#000000;text-align:left;vertical-align:top}
-</style>
+
 <table class="tg"><thead>
   <tr>
     <th class="tg-af47" rowspan="2"><span style="font-weight:normal">Models　</span><br><span style="font-weight:normal">　</span></th>
