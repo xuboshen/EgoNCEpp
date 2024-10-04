@@ -1,10 +1,11 @@
 import numpy as np
 
+
 def calculate_DCG(similarity_matrix, relevancy_matrix, k_counts):
     """
     Calculates the Discounted Cumulative Gain (DCG) between two modalities for
     the first modality.
-    DCG = \sum_{i=1}^k \frac{rel_i}{log_2(i + 1)}
+    DCG = sum_{i=1}^k frac{rel_i}{log_2(i + 1)}
     i.e. the sum of the k relevant retrievals which is calculated as the scaled
     relevancy for the ith item. The scale is designed such that early
     retrievals are more important than later retrievals.
@@ -26,20 +27,21 @@ def calculate_DCG(similarity_matrix, relevancy_matrix, k_counts):
     """
     x_sz, y_sz = similarity_matrix.shape
     ranks = np.argsort(similarity_matrix)[:, ::-1]
-    #Create vector of size (n,) where n is the length of the last dimension in
-    #similarity matrix
-    #This vector is of the form log(i+1)
+    # Create vector of size (n,) where n is the length of the last dimension in
+    # similarity matrix
+    # This vector is of the form log(i+1)
     logs = np.log2(np.arange(y_sz) + 2)
-    #Convert logs into the divisor for the DCG calculation, of size similarity
-    #matrix
+    # Convert logs into the divisor for the DCG calculation, of size similarity
+    # matrix
     divisors = np.repeat(np.expand_dims(logs, axis=0), x_sz, axis=0)
 
-    #mask out the sorted relevancy matrix to only use the first k relevant
-    #retrievals for each item.
+    # mask out the sorted relevancy matrix to only use the first k relevant
+    # retrievals for each item.
     columns = np.repeat(np.expand_dims(np.arange(x_sz), axis=1), y_sz, axis=1)
     numerators = relevancy_matrix[columns, ranks] * k_counts
-    #Calculate the final DCG score (note that this isn't expected to sum to 1)
+    # Calculate the final DCG score (note that this isn't expected to sum to 1)
     return np.sum(numerators / divisors, axis=1)
+
 
 def calculate_k_counts(relevancy_matrix):
     """
@@ -89,7 +91,10 @@ def calculate_IDCG(relevancy_matrix, k_counts):
     """
     return calculate_DCG(relevancy_matrix, relevancy_matrix, k_counts)
 
-def calculate_nDCG(similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None, reduction='mean'):
+
+def calculate_nDCG(
+    similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None, reduction="mean"
+):
     """
     Calculates the normalised Discounted Cumulative Gain (nDCG) between two
     modalities for the first modality using the Discounted Cumulative Gain
@@ -127,28 +132,20 @@ def calculate_nDCG(similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None
     DCG = calculate_DCG(similarity_matrix, relevancy_matrix, k_counts)
     if IDCG is None:
         IDCG = calculate_IDCG(relevancy_matrix, k_counts)
-    if reduction == 'mean':
+    if reduction == "mean":
         return np.mean(DCG / IDCG)
     elif reduction is None:
         return DCG / IDCG
 
 
-if __name__ == '__main__':
-    sim_matrix = np.array([
-        [1.0, 0.7, 0.4, 0.0],
-        [0.3, 0.9, 0.6, 0.1],
-        [0.2, 0.5, 0.8, 0.4]
-    ])
-    rel_matrix = np.array([
-        [1.0, 0.5, 0.25, 0.0],
-        [0.0, 1.0, 0.4, 0.0],
-        [0.5, 0.3, 1.0, 0.0]
-    ])
-    k_counts = np.array([
-        [1, 1, 1, 0],
-        [1, 1, 0, 0],
-        [1, 1, 1, 0]
-    ])
+if __name__ == "__main__":
+    sim_matrix = np.array(
+        [[1.0, 0.7, 0.4, 0.0], [0.3, 0.9, 0.6, 0.1], [0.2, 0.5, 0.8, 0.4]]
+    )
+    rel_matrix = np.array(
+        [[1.0, 0.5, 0.25, 0.0], [0.0, 1.0, 0.4, 0.0], [0.5, 0.3, 1.0, 0.0]]
+    )
+    k_counts = np.array([[1, 1, 1, 0], [1, 1, 0, 0], [1, 1, 1, 0]])
     assert (k_counts == calculate_k_counts(rel_matrix)).all()
     nDCG = calculate_nDCG(sim_matrix, rel_matrix, k_counts)
     assert nDCG == 0.9371789900735429
@@ -160,5 +157,7 @@ if __name__ == '__main__':
     pre_nDCG = calculate_nDCG(sim_matrix, rel_matrix, k_counts, IDCG=IDCG)
     assert pre_nDCG == nDCG
 
-    post_mean_nDCG = calculate_nDCG(sim_matrix, rel_matrix, k_counts, IDCG=IDCG, reduction=None)
+    post_mean_nDCG = calculate_nDCG(
+        sim_matrix, rel_matrix, k_counts, IDCG=IDCG, reduction=None
+    )
     assert np.mean(post_mean_nDCG) == pre_nDCG

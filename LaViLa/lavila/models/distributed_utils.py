@@ -9,9 +9,10 @@
 # Modified by Yue Zhao
 # The original code is under MIT License
 
+from typing import Tuple
+
 import torch
 import torch.distributed as dist
-from typing import Tuple
 
 
 def convert_to_distributed_tensor(tensor: torch.Tensor) -> Tuple[torch.Tensor, str]:

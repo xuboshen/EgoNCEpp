@@ -1,15 +1,16 @@
-import os
-import cv2
-import shutil
 import json
-import sys
-from multiprocessing import Pool
+import os
+import shutil
 import subprocess
-import pandas as pd
+import sys
 from csv import reader, writer
+from multiprocessing import Pool
 
-video_dir = 'dataset/ego4d_256/'
-output_dir = 'dataset/ego4d_chunked/'
+import cv2
+import pandas as pd
+
+video_dir = "dataset/ego4d_256/"
+output_dir = "dataset/ego4d_chunked/"
 
 save_dir = os.path.join(output_dir)
 if not os.path.exists(save_dir):
@@ -17,17 +18,19 @@ if not os.path.exists(save_dir):
 
 dur_limit = 600
 
+
 def video2segments(infos):
     global count
-    index, uid, dur = infos[0], infos[1], infos[2]
-    input_path = os.path.join(video_dir, uid + '.mp4')
+    # index, uid, dur = infos[0], infos[1], infos[2]
+    uid = infos[1]
+    input_path = os.path.join(video_dir, uid + ".mp4")
 
     output_uid_dir = os.path.join(output_dir, uid)
     if not os.path.exists(output_uid_dir):
         os.makedirs(output_uid_dir)
 
     # if index % num_partition != partition:
-        # return
+    # return
 
     assert os.path.exists(input_path)
 
@@ -37,19 +40,20 @@ def video2segments(infos):
     duration = frame_num / rate
 
     if duration <= dur_limit:
-        shutil.copyfile(input_path, os.path.join(output_uid_dir, '0.mp4'))
+        shutil.copyfile(input_path, os.path.join(output_uid_dir, "0.mp4"))
         return
 
     num_seg = duration // dur_limit
 
-    s1_time = 0;
+    s1_time = 0
     s2_time = dur_limit
     num_finished = 0
     while num_finished <= num_seg:
-        output_mp4_path = os.path.join(output_uid_dir, str(num_finished) + '.mp4')
+        output_mp4_path = os.path.join(output_uid_dir, str(num_finished) + ".mp4")
 
-        cmd = 'ffmpeg -y -i {} -ss {} -to {} -async 1 {}'.format(input_path, s1_time, s2_time,
-                                                                                 output_mp4_path)
+        cmd = "ffmpeg -y -i {} -ss {} -to {} -async 1 {}".format(
+            input_path, s1_time, s2_time, output_mp4_path
+        )
         # print(cmd)
         subprocess.call(cmd, shell=True)
 
@@ -59,18 +63,19 @@ def video2segments(infos):
         num_finished += 1
     return
 
+
 if __name__ == "__main__":
-    with open('dataset/manifest.csv', 'r') as csv:
+    with open("dataset/manifest.csv", "r") as csv:
         csv_reader = list(reader(csv))[1:]
 
-    downloaded = os.listdir('dataset/ego4d')
+    downloaded = os.listdir("dataset/ego4d")
 
     uid_list = []
     infos_list = []
     num_valid = 0
     for i_item, item in enumerate(csv_reader):
         uid, dur = item[0], float(item[2])
-        existed = uid + '.mp4' in downloaded
+        existed = uid + ".mp4" in downloaded
 
         if not existed:
             continue

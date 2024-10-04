@@ -7,14 +7,24 @@
 import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
-from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data.sampler import SubsetRandomSampler
+
 
 class BaseDataLoader(DataLoader):
     """
     Base class for all data loaders
     """
-    def __init__(self, dataset, batch_size, shuffle, validation_split, num_workers, collate_fn=default_collate):
+
+    def __init__(
+        self,
+        dataset,
+        batch_size,
+        shuffle,
+        validation_split,
+        num_workers,
+        collate_fn=default_collate,
+    ):
         self.validation_split = validation_split
         self.shuffle = shuffle
 
@@ -24,11 +34,11 @@ class BaseDataLoader(DataLoader):
         self.sampler, self.valid_sampler = self._split_sampler(self.validation_split)
 
         self.init_kwargs = {
-            'dataset': dataset,
-            'batch_size': batch_size,
-            'shuffle': self.shuffle,
-            'collate_fn': collate_fn,
-            'num_workers': num_workers
+            "dataset": dataset,
+            "batch_size": batch_size,
+            "shuffle": self.shuffle,
+            "collate_fn": collate_fn,
+            "num_workers": num_workers,
         }
         super().__init__(sampler=self.sampler, **self.init_kwargs)
 
@@ -43,7 +53,9 @@ class BaseDataLoader(DataLoader):
 
         if isinstance(split, int):
             assert split > 0
-            assert split < self.n_samples, "validation set size is configured to be larger than entire dataset."
+            assert (
+                split < self.n_samples
+            ), "validation set size is configured to be larger than entire dataset."
             len_valid = split
         else:
             len_valid = int(self.n_samples * split)
@@ -76,19 +88,22 @@ class BaseDataLoaderExplicitSplit(DataLoader):
     """
     Base class for all data loaders
     """
-    def __init__(self, dataset, batch_size, shuffle, num_workers, collate_fn=default_collate):
+
+    def __init__(
+        self, dataset, batch_size, shuffle, num_workers, collate_fn=default_collate
+    ):
         self.shuffle = shuffle
 
         self.batch_idx = 0
         self.n_samples = len(dataset)
 
         self.init_kwargs = {
-            'dataset': dataset,
-            'batch_size': batch_size,
-            'shuffle': self.shuffle,
-            'collate_fn': collate_fn,
-            'num_workers': num_workers,
-            'pin_memory': True
+            "dataset": dataset,
+            "batch_size": batch_size,
+            "shuffle": self.shuffle,
+            "collate_fn": collate_fn,
+            "num_workers": num_workers,
+            "pin_memory": True,
         }
         super().__init__(**self.init_kwargs)
 
@@ -97,20 +112,23 @@ class DistBaseDataLoaderExplicitSplit(DataLoader):
     """
     Base class for all data loaders
     """
-    def __init__(self, dataset, batch_size, shuffle, num_workers, collate_fn=default_collate):
+
+    def __init__(
+        self, dataset, batch_size, shuffle, num_workers, collate_fn=default_collate
+    ):
         self.shuffle = shuffle
 
         self.batch_idx = 0
         self.n_samples = len(dataset)
         self.train_sampler = DistributedSampler(dataset)
         self.init_kwargs = {
-            'dataset': dataset,
-            'batch_size': batch_size,
-            'shuffle': False,
-            'collate_fn': collate_fn,
-            'num_workers': num_workers,
-            'pin_memory': True,
-            'sampler': self.train_sampler
+            "dataset": dataset,
+            "batch_size": batch_size,
+            "shuffle": False,
+            "collate_fn": collate_fn,
+            "num_workers": num_workers,
+            "pin_memory": True,
+            "sampler": self.train_sampler,
         }
         super().__init__(**self.init_kwargs)
 
@@ -119,30 +137,43 @@ class MultiDistBaseDataLoaderExplicitSplit(DataLoader):
     """
     Base class for all data loaders
     """
-    def __init__(self, args, dataset, batch_size, shuffle, num_workers, collate_fn=default_collate):
+
+    def __init__(
+        self,
+        args,
+        dataset,
+        batch_size,
+        shuffle,
+        num_workers,
+        collate_fn=default_collate,
+    ):
         self.shuffle = shuffle
 
         self.batch_idx = 0
         self.n_samples = len(dataset)
         self.args = args
-        #print("args.world_size: ", self.args)
-        #self.train_sampler = DistributedSampler(dataset, num_replicas=self.args.world_size, rank=self.args.rank, drop_last=False)
-        self.train_sampler = DistributedSampler(dataset, drop_last=False, shuffle=True) ## Shuffle False only for debugging; change it later
+        # print("args.world_size: ", self.args)
+        # self.train_sampler = DistributedSampler(dataset, num_replicas=self.args.world_size, rank=self.args.rank, drop_last=False)
+        self.train_sampler = DistributedSampler(
+            dataset, drop_last=False, shuffle=True
+        )  # Shuffle False only for debugging; change it later
         self.init_kwargs = {
-            'dataset': dataset,
-            'batch_size': batch_size,
-            'shuffle': False,
-            'collate_fn': collate_fn,
-            'num_workers': num_workers,
-            'pin_memory': True,
-            'sampler': self.train_sampler
+            "dataset": dataset,
+            "batch_size": batch_size,
+            "shuffle": False,
+            "collate_fn": collate_fn,
+            "num_workers": num_workers,
+            "pin_memory": True,
+            "sampler": self.train_sampler,
         }
         super().__init__(**self.init_kwargs)
+
 
 class BaseMultiDataLoader:
     """
     Currently implemented as undersample the bigger dataloaders...
     """
+
     def __init__(self, dataloaders):
         self.dataloaders = dataloaders
         self.batch_size = self.dataloaders[0].batch_size

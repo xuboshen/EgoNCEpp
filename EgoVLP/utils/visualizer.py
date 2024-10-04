@@ -28,15 +28,15 @@ class RetrievalVis:
         self.img_dir = os.path.join(self.web_dir, "images")
         self.num_samples = num_samples
 
-        self.data_type = 'images' # 'images' or 'videos'
-        assert self.data_type in ('images', 'videos')
+        self.data_type = "images"  # 'images' or 'videos'
+        assert self.data_type in ("images", "videos")
 
         print(f"create web directory {self.web_dir}...")
         mkdirs([self.web_dir, self.img_dir])
 
         # cluster specific
         if "$TMPDIR" in src_video_dir:
-            src_video_dir = src_video_dir.replace("$TMPDIR", os.environ['TMPDIR'])
+            src_video_dir = src_video_dir.replace("$TMPDIR", os.environ["TMPDIR"])
 
         src_dir = Path(src_video_dir).absolute()
         print(f"symlinking videos from {src_dir}...")
@@ -58,8 +58,9 @@ class RetrievalVis:
         hide_gt = False
         # num_indep_samples = 1
         # random_seeds = np.arange(num_indep_samples)
-        sample = np.random.choice(np.arange(dists.shape[0]), size=self.num_samples,
-                                  replace=False)
+        sample = np.random.choice(
+            np.arange(dists.shape[0]), size=self.num_samples, replace=False
+        )
         for ii in sample:
             ranked_idx = sorted_ranks[ii][:vis_top_k]
             gt_captions = meta["raw_captions"][ii]
@@ -100,33 +101,38 @@ class RetrievalVis:
 
         msg = f"epoch [{epoch}] - {self.name}"
         webpage.add_header(msg)
-        msg = (f"R1: {metrics['R1']:.1f}, "
-               f"R5: {metrics['R5']:.1f}, "
-               f"R10: {metrics['R10']:.1f}, "
-               f"MedR: {metrics['MedR']}")
+        msg = (
+            f"R1: {metrics['R1']:.1f}, "
+            f"R5: {metrics['R5']:.1f}, "
+            f"R10: {metrics['R10']:.1f}, "
+            f"MedR: {metrics['MedR']}"
+        )
         webpage.add_header(msg)
         print(f"Top {len(rankings[0])} retreived videos at epoch: {epoch}")
 
         for ranking in rankings:
             vids, txts, links = [], [], []
-            gt_vid_path = os.path.join('videos', ranking["gt-path"])
-            #gt_captions = [" ".join(x) for x in ranking["gt-captions"]]
-            gt_captions = ranking['gt-captions']
+            gt_vid_path = os.path.join("videos", ranking["gt-path"])
+            # gt_captions = [" ".join(x) for x in ranking["gt-captions"]]
+            gt_captions = ranking["gt-captions"]
             gt_captions = "<br>" + (gt_captions) + "<br>"
             if ranking["hide-gt"]:
                 txts.append(gt_captions)
                 links.append("hidden")
                 vids.append("hidden")
             else:
-                txt = (f"{gt_captions}<br><b>Rank: {ranking['gt-rank']}, "
-                       f"Sim: {ranking['gt-sim']:.3f} [{Path(ranking['gt-path']).stem}]")
+                txt = (
+                    f"{gt_captions}<br><b>Rank: {ranking['gt-rank']}, "
+                    f"Sim: {ranking['gt-sim']:.3f} [{Path(ranking['gt-path']).stem}]"
+                )
                 txts.append(txt)
                 links.append(gt_vid_path)
                 vids.append(gt_vid_path)
 
-            for idx, (vid_path, sim) in enumerate(zip(ranking["top-k-paths"],
-                                                  ranking["top-k-sims"])):
-                vid_path = Path(os.path.join('videos', vid_path))
+            for idx, (vid_path, sim) in enumerate(
+                zip(ranking["top-k-paths"], ranking["top-k-sims"])
+            ):
+                vid_path = Path(os.path.join("videos", vid_path))
                 if ranking["hide-gt"]:
                     txt = f"choice: {idx}"
                 else:
@@ -134,12 +140,13 @@ class RetrievalVis:
                 txts.append(txt)
                 vids.append(vid_path)
                 links.append(vid_path)
-            if self.data_type == 'videos':
+            if self.data_type == "videos":
                 webpage.add_videos(vids, txts, links, width=200)
-            elif self.data_type == 'images':
+            elif self.data_type == "images":
                 webpage.add_images(vids, txts, links, width=200)
         print(f"added {len(vids)} videos")
         webpage.save()
+
 
 def mkdirs(paths):
     """create empty directories if they don't exist

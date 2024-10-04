@@ -11,7 +11,8 @@ from lavila.utils import distributed as dist_utils
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
-    def __init__(self, name, fmt=':f'):
+
+    def __init__(self, name, fmt=":f"):
         self.name = name
         self.fmt = fmt
         self.reset()
@@ -31,7 +32,7 @@ class AverageMeter(object):
     def synchronize(self):
         if not dist_utils.is_dist_avail_and_initialized():
             return
-        t = torch.tensor([self.sum, self.count], dtype=torch.float64, device='cuda')
+        t = torch.tensor([self.sum, self.count], dtype=torch.float64, device="cuda")
         dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
@@ -40,7 +41,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
     def __str__(self):
-        fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
+        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
         return fmtstr.format(**self.__dict__)
 
 
@@ -53,7 +54,7 @@ class ProgressMeter(object):
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
+        print("\t".join(entries))
 
     def synchronize(self):
         for meter in self.meters:
@@ -61,5 +62,5 @@ class ProgressMeter(object):
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
-        fmt = '{:' + str(num_digits) + 'd}'
-        return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+        fmt = "{:" + str(num_digits) + "d}"
+        return "[" + fmt + "/" + fmt.format(num_batches) + "]"

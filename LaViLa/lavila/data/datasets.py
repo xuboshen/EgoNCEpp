@@ -7,42 +7,48 @@
 import csv
 import glob
 import json
-import numpy as np
+import os
 import os.path as osp
 import pickle
 import random
 
+import cv2
 import decord
+import numpy as np
 import pandas as pd
 import torch
-import cv2
-import os
 
-def sample_frames_start_end(num_frames, start, end, sample='rand', fix_start=None):
+
+def sample_frames_start_end(num_frames, start, end, sample="rand", fix_start=None):
     acc_samples = min(num_frames, end)
     intervals = np.linspace(start=start, stop=end, num=acc_samples + 1).astype(int)
     ranges = []
     for idx, interv in enumerate(intervals[:-1]):
         ranges.append((interv, intervals[idx + 1] - 1))
-    if sample == 'rand':
+    if sample == "rand":
         frame_idxs = [random.choice(range(x[0], x[1])) for x in ranges]
     elif fix_start is not None:
         frame_idxs = [x[0] + fix_start for x in ranges]
-    elif sample == 'uniform':
+    elif sample == "uniform":
         frame_idxs = [(x[0] + x[1]) // 2 for x in ranges]
     else:
         raise NotImplementedError
 
     return frame_idxs
 
-def read_frames_cv2_epic(video_path, start_frame, stop_frame, num_frames, sample='rand', fix_start=None):
+
+def read_frames_cv2_epic(
+    video_path, start_frame, stop_frame, num_frames, sample="rand", fix_start=None
+):
     # get indexes of sampled frames
-    video_path = video_path.split('.MP4')[0]
-    frame_idxs = sample_frames_start_end(num_frames, start_frame, stop_frame, sample=sample, fix_start=fix_start)
+    video_path = video_path.split(".MP4")[0]
+    frame_idxs = sample_frames_start_end(
+        num_frames, start_frame, stop_frame, sample=sample, fix_start=fix_start
+    )
     frames = []
     success_idxs = []
     for index in frame_idxs:
-        img_name = 'frame_' + str(index).zfill(10) + '.jpg'
+        img_name = "frame_" + str(index).zfill(10) + ".jpg"
         frame = cv2.imread(os.path.join(video_path, img_name))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -55,14 +61,24 @@ def read_frames_cv2_epic(video_path, start_frame, stop_frame, num_frames, sample
     frames = torch.stack(frames).float() / 255
     return frames, success_idxs
 
+
 def datetime2sec(str):
-    hh, mm, ss = str.split(':')
+    hh, mm, ss = str.split(":")
     return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
 
-def video_loader(root, vid, second, end_second=None, chunk_len=300, fps=30, clip_length=32, jitter=False):
+def video_loader(
+    root,
+    vid,
+    second,
+    end_second=None,
+    chunk_len=300,
+    fps=30,
+    clip_length=32,
+    jitter=False,
+):
     if chunk_len == -1:
-        vr = decord.VideoReader(osp.join(root, '{}.mp4'.format(vid)))
+        vr = decord.VideoReader(osp.join(root, "{}.mp4".format(vid)))
         second_offset = second
         if end_second is not None:
             end_second = min(end_second, len(vr) / vr.get_avg_fps())
@@ -71,7 +87,9 @@ def video_loader(root, vid, second, end_second=None, chunk_len=300, fps=30, clip
     else:
         chunk_start = int(second) // chunk_len * chunk_len
         second_offset = second - chunk_start
-        vr = decord.VideoReader(osp.join(root, '{}.mp4'.format(vid), '{}.mp4'.format(chunk_start)))
+        vr = decord.VideoReader(
+            osp.join(root, "{}.mp4".format(vid), "{}.mp4".format(chunk_start))
+        )
     if fps == -1:
         fps = vr.get_avg_fps()
 
@@ -82,9 +100,19 @@ def video_loader(root, vid, second, end_second=None, chunk_len=300, fps=30, clip
         if end_second <= second:
             raise ValueError("end_second should be greater than second")
         else:
-            frame_ids = get_frame_ids(frame_offset, min(frame_offset + total_duration, len(vr)), num_segments=clip_length, jitter=jitter)
+            frame_ids = get_frame_ids(
+                frame_offset,
+                min(frame_offset + total_duration, len(vr)),
+                num_segments=clip_length,
+                jitter=jitter,
+            )
     else:
-        frame_ids = get_frame_ids(frame_offset, frame_offset + total_duration, num_segments=clip_length, jitter=jitter)
+        frame_ids = get_frame_ids(
+            frame_offset,
+            frame_offset + total_duration,
+            num_segments=clip_length,
+            jitter=jitter,
+        )
 
     # load frames
     if max(frame_ids) < len(vr):
@@ -96,17 +124,32 @@ def video_loader(root, vid, second, end_second=None, chunk_len=300, fps=30, clip
     else:
         # find the remaining frames in the next chunk
         try:
-            frame_ids_part1 = list(filter(lambda frame_id: frame_id < len(vr), frame_ids))
+            frame_ids_part1 = list(
+                filter(lambda frame_id: frame_id < len(vr), frame_ids)
+            )
             frames_part1 = vr.get_batch(frame_ids_part1).asnumpy()
-            vr2 = decord.VideoReader(osp.join(root, '{}.mp4'.format(vid), '{}.mp4'.format(chunk_start + chunk_len)))
-            frame_ids_part2 = list(filter(lambda frame_id: frame_id >= len(vr), frame_ids))
-            frame_ids_part2 = [min(frame_id % len(vr), len(vr2) - 1) for frame_id in frame_ids_part2]
+            vr2 = decord.VideoReader(
+                osp.join(
+                    root, "{}.mp4".format(vid), "{}.mp4".format(chunk_start + chunk_len)
+                )
+            )
+            frame_ids_part2 = list(
+                filter(lambda frame_id: frame_id >= len(vr), frame_ids)
+            )
+            frame_ids_part2 = [
+                min(frame_id % len(vr), len(vr2) - 1) for frame_id in frame_ids_part2
+            ]
             frames_part2 = vr2.get_batch(frame_ids_part2).asnumpy()
             frames = np.concatenate([frames_part1, frames_part2], axis=0)
         # the next chunk does not exist; the current chunk is the last one
         except (RuntimeError, decord.DECORDError) as error:
             print(error)
-            frame_ids = get_frame_ids(min(frame_offset, len(vr) - 1), len(vr), num_segments=clip_length, jitter=jitter)
+            frame_ids = get_frame_ids(
+                min(frame_offset, len(vr) - 1),
+                len(vr),
+                num_segments=clip_length,
+                jitter=jitter,
+            )
             frames = vr.get_batch(frame_ids).asnumpy()
 
     frames = [torch.tensor(frame, dtype=torch.float32) for frame in frames]
@@ -146,21 +189,23 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
         self.root = root
         self.is_trimmed = is_trimmed
 
-        if self.dataset == 'ego4d':
-            with open(metadata, 'rb') as f:
+        if self.dataset == "ego4d":
+            with open(metadata, "rb") as f:
                 self.samples = pickle.load(f)
-        elif self.dataset == 'ego4d_mcq':
-            with open(metadata, 'r') as f:
+        elif self.dataset == "ego4d_mcq":
+            with open(metadata, "r") as f:
                 self.samples = json.load(f)
-        elif self.dataset == 'ego4d_mcq_v2t':
-            with open(metadata, 'r') as f:
+        elif self.dataset == "ego4d_mcq_v2t":
+            with open(metadata, "r") as f:
                 self.samples = json.load(f)
-        elif self.dataset == 'ego4d_hoi':
+        elif self.dataset == "ego4d_hoi":
             # import pdb; pdb.set_trace()
-            self.samples = pd.read_csv(metadata, sep='\t')
-        elif self.dataset in ['ek100_cls', 'ek100_mir']:
-            video_list = glob.glob(osp.join(self.root, '*/*.MP4'))
-            fps_dict = {video: decord.VideoReader(video).get_avg_fps() for video in video_list}
+            self.samples = pd.read_csv(metadata, sep="\t")
+        elif self.dataset in ["ek100_cls", "ek100_mir"]:
+            video_list = glob.glob(osp.join(self.root, "*/*.MP4"))
+            fps_dict = {
+                video: decord.VideoReader(video).get_avg_fps() for video in video_list
+            }
             self.samples = []
             with open(metadata) as f:
                 csv_reader = csv.reader(f)
@@ -169,50 +214,89 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                     pid, vid = row[1:3]
                     # start_frame, end_frame = int(row[6]), int(row[7])
                     # Deprecated: some videos might have fps mismatch issue
-                    start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
+                    start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(
+                        row[5]
+                    )
                     narration = row[8]
                     verb, noun = int(row[10]), int(row[12])
-                    vid_path = '{}/{}.MP4'.format(pid, vid)
+                    vid_path = "{}/{}.MP4".format(pid, vid)
                     fps = fps_dict[osp.join(self.root, vid_path)]
                     start_frame = int(np.round(fps * start_timestamp))
                     end_frame = int(np.ceil(fps * end_timestamp))
-                    self.samples.append((vid_path, start_frame, end_frame, narration, verb, noun))
-            if self.dataset == 'ek100_mir':
-                self.metadata_sentence = pd.read_csv(metadata[:metadata.index('.csv')] + '_sentence.csv')
-                if 'train' in metadata:
-                    self.relevancy_mat = pickle.load(open(osp.join(osp.dirname(metadata), 'relevancy', 'caption_relevancy_EPIC_100_retrieval_train.pkl'), 'rb'))
-                elif 'test' in metadata:
-                    self.relevancy_mat = pickle.load(open(osp.join(osp.dirname(metadata), 'relevancy', 'caption_relevancy_EPIC_100_retrieval_test.pkl'), 'rb'))
+                    self.samples.append(
+                        (vid_path, start_frame, end_frame, narration, verb, noun)
+                    )
+            if self.dataset == "ek100_mir":
+                self.metadata_sentence = pd.read_csv(
+                    metadata[: metadata.index(".csv")] + "_sentence.csv"
+                )
+                if "train" in metadata:
+                    self.relevancy_mat = pickle.load(
+                        open(
+                            osp.join(
+                                osp.dirname(metadata),
+                                "relevancy",
+                                "caption_relevancy_EPIC_100_retrieval_train.pkl",
+                            ),
+                            "rb",
+                        )
+                    )
+                elif "test" in metadata:
+                    self.relevancy_mat = pickle.load(
+                        open(
+                            osp.join(
+                                osp.dirname(metadata),
+                                "relevancy",
+                                "caption_relevancy_EPIC_100_retrieval_test.pkl",
+                            ),
+                            "rb",
+                        )
+                    )
                 else:
-                    raise ValueError('{} should contain either "train" or "test"!'.format(metadata))
-                self.relevancy = .1
-        elif self.dataset == 'egtea':
-            video_list = glob.glob(osp.join(self.root, '*/*'))
+                    raise ValueError(
+                        '{} should contain either "train" or "test"!'.format(metadata)
+                    )
+                self.relevancy = 0.1
+        elif self.dataset == "egtea":
+            video_list = glob.glob(osp.join(self.root, "*/*"))
             print("Videoname: ", video_list[0], video_list)
             print(self.root)
             len_dict = {video: len(decord.VideoReader(video)) for video in video_list}
 
             vn_list, labels = [], []
-            for row in open(osp.join(osp.dirname(metadata), 'action_idx.txt')):
+            for row in open(osp.join(osp.dirname(metadata), "action_idx.txt")):
                 row = row.strip()
-                vn = int(row.split(' ')[-1])
+                vn = int(row.split(" ")[-1])
                 vn_list.append(vn)
-                narration = ' '.join(row.split(' ')[:-1])
-                labels.append(narration.replace('_', ' ').lower())
+                narration = " ".join(row.split(" ")[:-1])
+                labels.append(narration.replace("_", " ").lower())
                 # labels.append(narration)
-            mapping_act2narration = {vn: narration for vn, narration in zip(vn_list, labels)}
+            mapping_act2narration = {
+                vn: narration for vn, narration in zip(vn_list, labels)
+            }
 
             self.samples = []
             with open(metadata) as f:
                 for row in f:
-                    clip_id, action_idx = row.strip().split(' ')[:2]
-                    video_id = '-'.join(clip_id.split('-')[:3])
-                    vid_relpath = osp.join(video_id, '{}.mp4'.format(clip_id))
-                    vid_fullpath = osp.join(self.root, video_id, '{}.mp4'.format(clip_id))
-                    self.samples.append((vid_relpath, 0, len_dict[vid_fullpath], mapping_act2narration[int(action_idx)]))
-        elif self.dataset == 'charades_ego':
-            video_list = glob.glob(osp.join(self.root, '*.mp4'))
-            fps_dict = {video: decord.VideoReader(video).get_avg_fps() for video in video_list}
+                    clip_id, action_idx = row.strip().split(" ")[:2]
+                    video_id = "-".join(clip_id.split("-")[:3])
+                    vid_relpath = osp.join(video_id, "{}.mp4".format(clip_id))
+                    vid_fullpath = osp.join(
+                        self.root, video_id, "{}.mp4".format(clip_id)
+                    )
+                    self.samples.append(
+                        (
+                            vid_relpath,
+                            0,
+                            len_dict[vid_fullpath],
+                            mapping_act2narration[int(action_idx)],
+                        )
+                    )
+        elif self.dataset == "charades_ego":
+            video_list = glob.glob(osp.join(self.root, "*.mp4"))
+            fps_dict = {
+                video: decord.VideoReader(video).get_avg_fps() for video in video_list
+            }
             self.samples = []
             with open(metadata) as f:
                 csv_reader = csv.reader(f)
@@ -220,46 +304,67 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                 for row in csv_reader:
                     video_id = row[0]
                     if self.is_trimmed:
-                        for action_tuple in row[9].split(';'):
+                        for action_tuple in row[9].split(";"):
                             if not action_tuple:
                                 continue
-                            action, start_timestamp, end_timestamp = action_tuple.split(' ')
-                            start_timestamp, end_timestamp = float(start_timestamp), float(end_timestamp)
-                            vid_path = '{}.mp4'.format(video_id)
+                            action, start_timestamp, end_timestamp = action_tuple.split(
+                                " "
+                            )
+                            start_timestamp, end_timestamp = float(
+                                start_timestamp
+                            ), float(end_timestamp)
+                            vid_path = "{}.mp4".format(video_id)
                             fps = fps_dict[osp.join(self.root, vid_path)]
                             start_frame = int(np.round(fps * start_timestamp))
                             end_frame = int(np.ceil(fps * end_timestamp))
-                            self.samples.append((vid_path, start_frame, end_frame, action))
+                            self.samples.append(
+                                (vid_path, start_frame, end_frame, action)
+                            )
                     else:
                         if not row[9]:
                             action_list = []
                         else:
-                            action_list = [action_tuple.split(' ')[0] for action_tuple in row[9].split(';')]
-                        vid_path = '{}.mp4'.format(video_id)
+                            action_list = [
+                                action_tuple.split(" ")[0]
+                                for action_tuple in row[9].split(";")
+                            ]
+                        vid_path = "{}.mp4".format(video_id)
                         fps = fps_dict[osp.join(self.root, vid_path)]
                         duration = fps * float(row[10])
                         self.samples.append((vid_path, 0, duration, action_list))
-        elif self.dataset == 'charades_ego_trimmed':
-            with open(metadata, 'rb') as f:
+        elif self.dataset == "charades_ego_trimmed":
+            with open(metadata, "rb") as f:
                 self.samples = pickle.load(f)
         else:
             raise NotImplementedError
 
-    def get_raw_item(self, i, is_training=True, num_clips=1, clip_length=32, clip_stride=2, sparse_sample=False,
-                     narration_selection='random'):
-        if self.dataset == 'ego4d':
+    def get_raw_item(
+        self,
+        i,
+        is_training=True,
+        num_clips=1,
+        clip_length=32,
+        clip_stride=2,
+        sparse_sample=False,
+        narration_selection="random",
+    ):
+        if self.dataset == "ego4d":
             if len(self.samples[i]) == 4:
                 vid, start_second, end_second, narration = self.samples[i]
-                frames = video_loader(self.root, vid, start_second,
-                                      end_second=end_second,
-                                      clip_length=clip_length,
-                                      jitter=is_training)
+                frames = video_loader(
+                    self.root,
+                    vid,
+                    start_second,
+                    end_second=end_second,
+                    clip_length=clip_length,
+                    jitter=is_training,
+                )
                 if isinstance(narration, list):
-                    if narration_selection == 'random':
+                    if narration_selection == "random":
                         narration = random.choice(narration)
-                    elif narration_selection == 'concat':
-                        narration = '. '.join(narration)
-                    elif narration_selection == 'list':
+                    elif narration_selection == "concat":
+                        narration = ". ".join(narration)
+                    elif narration_selection == "list":
                         narration = narration
                     else:
                         raise ValueError
@@ -267,51 +372,69 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
             elif len(self.samples[i]) == 5:
                 # TODO: need better filtering strategy based on nll
                 vid, start_second, end_second, narration, _ = self.samples[i]
-                frames = video_loader(self.root, vid, start_second,
-                                      end_second=end_second,
-                                      clip_length=clip_length,
-                                      jitter=is_training)
+                frames = video_loader(
+                    self.root,
+                    vid,
+                    start_second,
+                    end_second=end_second,
+                    clip_length=clip_length,
+                    jitter=is_training,
+                )
                 if isinstance(narration, list):
-                    if narration_selection == 'random':
+                    if narration_selection == "random":
                         narration = random.choice(narration)
-                    elif narration_selection == 'concat':
-                        narration = '. '.join(narration)
-                    elif narration_selection == 'list':
+                    elif narration_selection == "concat":
+                        narration = ". ".join(narration)
+                    elif narration_selection == "list":
                         narration = narration
                     else:
                         raise ValueError
                 return frames, narration
-        elif self.dataset == 'ego4d_mcq':
+        elif self.dataset == "ego4d_mcq":
             itemMCQ = self.samples[str(i)]
-            answerIndex = itemMCQ['answer']
-            textQuery = itemMCQ['query']['clip_text']
-            sampleOptions = itemMCQ['choices']
+            answerIndex = itemMCQ["answer"]
+            textQuery = itemMCQ["query"]["clip_text"]
+            sampleOptions = itemMCQ["choices"]
             frames_options = []
             narration_options = []
             for option_id in range(len(sampleOptions)):
                 option = sampleOptions[str(option_id)]
-                frames = video_loader(self.root, option['video_uid'],
-                                      float(option['clip_start']), end_second=float(option['clip_end']),
-                                      clip_length=clip_length,
-                                      jitter=is_training)
+                frames = video_loader(
+                    self.root,
+                    option["video_uid"],
+                    float(option["clip_start"]),
+                    end_second=float(option["clip_end"]),
+                    clip_length=clip_length,
+                    jitter=is_training,
+                )
                 frames_options.append(frames)
-                narration_options.append(option['clip_text'])
-            return textQuery, frames_options, narration_options, answerIndex, itemMCQ['types']
-        elif self.dataset == 'ego4d_mcq_v2t':
+                narration_options.append(option["clip_text"])
+            return (
+                textQuery,
+                frames_options,
+                narration_options,
+                answerIndex,
+                itemMCQ["types"],
+            )
+        elif self.dataset == "ego4d_mcq_v2t":
             itemMCQ = self.samples[list(self.samples.keys())[i]]
-            answerIndex = itemMCQ['answer']
-            videoQuery = itemMCQ['query']
-            textQuery = itemMCQ['query']['clip_text']
+            answerIndex = itemMCQ["answer"]
+            videoQuery = itemMCQ["query"]
+            textQuery = itemMCQ["query"]["clip_text"]
             try:
-                frameQuery = video_loader(self.root, videoQuery['video_uid'],
-                                        float(videoQuery['clip_start']), end_second=float(videoQuery['clip_end']),
-                                        clip_length=clip_length,
-                                        jitter=is_training)
+                frameQuery = video_loader(
+                    self.root,
+                    videoQuery["video_uid"],
+                    float(videoQuery["clip_start"]),
+                    end_second=float(videoQuery["clip_end"]),
+                    clip_length=clip_length,
+                    jitter=is_training,
+                )
             except Exception as e:
                 print(e)
                 frameQuery = torch.zeros((4, 288, 384, 3))
-                                      
-            sampleOptions = itemMCQ['choices']
+
+            sampleOptions = itemMCQ["choices"]
             frames_options = []
             narration_options = []
             for option_id in range(len(sampleOptions)):
@@ -321,18 +444,31 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                 #                       clip_length=clip_length,
                 #                       jitter=is_training)
                 frames_options.append(torch.tensor([0]))
-                narration_options.append(option['clip_text'])
-            return frameQuery, frames_options, narration_options, answerIndex, itemMCQ['types'], textQuery
-        elif self.dataset == 'ego4d_hoi':
+                narration_options.append(option["clip_text"])
+            return (
+                frameQuery,
+                frames_options,
+                narration_options,
+                answerIndex,
+                itemMCQ["types"],
+                textQuery,
+            )
+        elif self.dataset == "ego4d_hoi":
             itemHOI = self.samples.iloc[i]
-            textQuery = str(itemHOI['clip_text'])
-            verb_choice = str(itemHOI['action_antonym_clip_text']).split(', ')
-            noun_choice = str(itemHOI['action_antonym_clip_text']).split(', ')
+            textQuery = str(itemHOI["clip_text"])
+            verb_choice = str(itemHOI["action_antonym_clip_text"]).split(", ")
+            noun_choice = str(itemHOI["action_antonym_clip_text"]).split(", ")
             if len(verb_choice) < 10:
-                expand_list = [verb_choice[len(verb_choice) - 1] for i in range(10 - len(verb_choice))]
+                expand_list = [
+                    verb_choice[len(verb_choice) - 1]
+                    for i in range(10 - len(verb_choice))
+                ]
                 verb_choice.extend(expand_list)
             if len(noun_choice) < 10:
-                expand_list = [noun_choice[len(noun_choice) - 1] for i in range(10 - len(noun_choice))]
+                expand_list = [
+                    noun_choice[len(noun_choice) - 1]
+                    for i in range(10 - len(noun_choice))
+                ]
                 noun_choice.extend(expand_list)
             if len(verb_choice) > 10:
                 verb_choice = verb_choice[:10]
@@ -341,10 +477,14 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
             frames_options = []
             narration_options = []
             try:
-                frames = video_loader(self.root, itemHOI['video_uid'],
-                                        float(itemHOI['clip_start']), end_second=float(itemHOI['clip_end']),
-                                        clip_length=clip_length,
-                                        jitter=is_training)
+                frames = video_loader(
+                    self.root,
+                    itemHOI["video_uid"],
+                    float(itemHOI["clip_start"]),
+                    end_second=float(itemHOI["clip_end"]),
+                    clip_length=clip_length,
+                    jitter=is_training,
+                )
             except Exception as e:
                 print(e)
                 frames = torch.zeros((4, 288, 384, 3))
@@ -352,8 +492,6 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
             frames_options.append(frames)
             narration_options.append(textQuery)
 
-
-            
             # for option_id in range(len(sampleOptions)):
             #     option = sampleOptions[str(option_id)]
             #     frames = video_loader(self.root, option['video_uid'],
@@ -364,83 +502,136 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
             #     narration_options.append(option['clip_text'])
             return textQuery, frames, verb_choice, noun_choice
             # return textQuery, frames_options, narration_options, answerIndex, itemMCQ['types']
-        elif self.dataset == 'ek100_mir':
+        elif self.dataset == "ek100_mir":
             vid_path, start_frame, end_frame, narration, verb, noun = self.samples[i]
             # from third_party.EgoVLP.base.base_dataset import sample_frames_start_end
             # frame_ids = sample_frames_start_end(clip_length, start_frame, end_frame, sample='uniform', fix_start=None)
             # vid_path = os.path.join(self.root, vid_path)
             # frames, _ = read_frames_cv2_epic(vid_path, start_frame, end_frame, clip_length, sample='uniform', fix_start=None)
-            frame_ids = get_frame_ids(start_frame, end_frame, num_segments=clip_length, jitter=is_training)
+            frame_ids = get_frame_ids(
+                start_frame, end_frame, num_segments=clip_length, jitter=is_training
+            )
             frames = video_loader_by_frames(self.root, vid_path, frame_ids)
-            
+
             if is_training:
-                positive_list = np.where(self.relevancy_mat[i] > self.relevancy)[0].tolist()
+                positive_list = np.where(self.relevancy_mat[i] > self.relevancy)[
+                    0
+                ].tolist()
                 if positive_list != []:
                     pos = random.sample(positive_list, min(len(positive_list), 1))[0]
-                    if pos < len(self.metadata_sentence) and pos < self.relevancy_mat.shape[1]:
-                        return frames, (self.metadata_sentence.iloc[pos][1], self.relevancy_mat[i][pos])
+                    if (
+                        pos < len(self.metadata_sentence)
+                        and pos < self.relevancy_mat.shape[1]
+                    ):
+                        return frames, (
+                            self.metadata_sentence.iloc[pos][1],
+                            self.relevancy_mat[i][pos],
+                        )
             else:
                 return frames, (narration, 1)
-        elif self.dataset == 'ek100_cls':
+        elif self.dataset == "ek100_cls":
             vid_path, start_frame, end_frame, narration, verb, noun = self.samples[i]
-            frame_ids = get_frame_ids(start_frame, end_frame, num_segments=clip_length, jitter=is_training)
+            frame_ids = get_frame_ids(
+                start_frame, end_frame, num_segments=clip_length, jitter=is_training
+            )
             frames = video_loader_by_frames(self.root, vid_path, frame_ids)
-            return frames, '{}:{}'.format(verb, noun)
-        elif self.dataset == 'egtea':
+            return frames, "{}:{}".format(verb, noun)
+        elif self.dataset == "egtea":
             vid_path, start_frame, end_frame, sentence = self.samples[i]
             if is_training:
                 assert num_clips == 1
                 if end_frame < clip_length * clip_stride:
-                    frames = video_loader_by_frames(self.root, vid_path, list(np.arange(0, end_frame)))
-                    zeros = torch.zeros((clip_length * clip_stride - end_frame, *frames.shape[1:]))
+                    frames = video_loader_by_frames(
+                        self.root, vid_path, list(np.arange(0, end_frame))
+                    )
+                    zeros = torch.zeros(
+                        (clip_length * clip_stride - end_frame, *frames.shape[1:])
+                    )
                     frames = torch.cat((frames, zeros), dim=0)
                     frames = frames[::clip_stride]
                 else:
-                    start_id = np.random.randint(0, end_frame - clip_length * clip_stride + 1)
-                    frame_ids = np.arange(start_id, start_id + clip_length * clip_stride, clip_stride)
+                    start_id = np.random.randint(
+                        0, end_frame - clip_length * clip_stride + 1
+                    )
+                    frame_ids = np.arange(
+                        start_id, start_id + clip_length * clip_stride, clip_stride
+                    )
                     frames = video_loader_by_frames(self.root, vid_path, frame_ids)
             else:
                 if end_frame < clip_length * clip_stride:
-                    frames = video_loader_by_frames(self.root, vid_path, list(np.arange(0, end_frame)))
-                    zeros = torch.zeros((clip_length * clip_stride - end_frame, *frames.shape[1:]))
+                    frames = video_loader_by_frames(
+                        self.root, vid_path, list(np.arange(0, end_frame))
+                    )
+                    zeros = torch.zeros(
+                        (clip_length * clip_stride - end_frame, *frames.shape[1:])
+                    )
                     frames = torch.cat((frames, zeros), dim=0)
                     frames = frames[::clip_stride]
                     frames = frames.repeat(num_clips, 1, 1, 1)
                 else:
                     frame_ids = []
-                    for start_id in np.linspace(0, end_frame - clip_length * clip_stride, num_clips, dtype=int):
-                        frame_ids.extend(np.arange(start_id, start_id + clip_length * clip_stride, clip_stride))
+                    for start_id in np.linspace(
+                        0, end_frame - clip_length * clip_stride, num_clips, dtype=int
+                    ):
+                        frame_ids.extend(
+                            np.arange(
+                                start_id,
+                                start_id + clip_length * clip_stride,
+                                clip_stride,
+                            )
+                        )
                     frames = video_loader_by_frames(self.root, vid_path, frame_ids)
             return frames, sentence
-        elif self.dataset == 'charades_ego':
+        elif self.dataset == "charades_ego":
             vid_path, start_frame, end_frame, action_list = self.samples[i]
             if sparse_sample:
-                frame_ids = get_frame_ids(start_frame, end_frame, num_segments=num_clips * clip_length, jitter=is_training)
+                frame_ids = get_frame_ids(
+                    start_frame,
+                    end_frame,
+                    num_segments=num_clips * clip_length,
+                    jitter=is_training,
+                )
                 frames = video_loader_by_frames(self.root, vid_path, frame_ids)
             else:
                 if end_frame < clip_length * clip_stride:
-                    frames = video_loader_by_frames(self.root, vid_path, list(np.arange(0, end_frame)))
+                    frames = video_loader_by_frames(
+                        self.root, vid_path, list(np.arange(0, end_frame))
+                    )
                     print(frames.shape)
-                    siz = torch.Size((int(clip_length * clip_stride - end_frame), *frames.shape[1:]))
+                    siz = torch.Size(
+                        (int(clip_length * clip_stride - end_frame), *frames.shape[1:])
+                    )
                     zeros = torch.zeros(siz)
                     frames = torch.cat((frames, zeros), dim=0)
                     frames = frames[::clip_stride]
                     frames = frames.repeat(num_clips, 1, 1, 1)
                 else:
                     frame_ids = []
-                    for start_id in np.linspace(0, end_frame - clip_length * clip_stride, num_clips, dtype=int):
-                        frame_ids.extend(np.arange(start_id, start_id + clip_length * clip_stride, clip_stride))
-                    print('frame_ids:', frame_ids)
+                    for start_id in np.linspace(
+                        0, end_frame - clip_length * clip_stride, num_clips, dtype=int
+                    ):
+                        frame_ids.extend(
+                            np.arange(
+                                start_id,
+                                start_id + clip_length * clip_stride,
+                                clip_stride,
+                            )
+                        )
+                    print("frame_ids:", frame_ids)
                     frames = video_loader_by_frames(self.root, vid_path, frame_ids)
             return frames, action_list
-        elif self.dataset == 'charades_ego_trimmed':
+        elif self.dataset == "charades_ego_trimmed":
             vid, start_second, end_second, narration = self.samples[i]
-            frames = video_loader(self.root, vid, start_second,
-                                  end_second=end_second,
-                                  chunk_len=-1,  # no chunk for CharadesEgo
-                                  fps=-1,  # could be variable fps
-                                  clip_length=clip_length,
-                                  jitter=is_training)
+            frames = video_loader(
+                self.root,
+                vid,
+                start_second,
+                end_second=end_second,
+                chunk_len=-1,  # no chunk for CharadesEgo
+                fps=-1,  # could be variable fps
+                clip_length=clip_length,
+                jitter=is_training,
+            )
             return frames, narration
         else:
             raise NotImplementedError
@@ -453,12 +644,21 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
 
 
 class VideoCaptionDatasetCLIP(VideoCaptionDatasetBase):
-    def __init__(self, dataset, root, metadata, transform=None,
-                 is_training=True, tokenizer=None,
-                 clip_length=32, clip_stride=2, sparse_sample=False,
-                 narration_selection='random',
-                 num_hard_negatives=0,
-                 subsample_stride=None):
+    def __init__(
+        self,
+        dataset,
+        root,
+        metadata,
+        transform=None,
+        is_training=True,
+        tokenizer=None,
+        clip_length=32,
+        clip_stride=2,
+        sparse_sample=False,
+        narration_selection="random",
+        num_hard_negatives=0,
+        subsample_stride=None,
+    ):
         super().__init__(dataset, root, metadata)
 
         self.full_samples = self.samples.copy()
@@ -473,11 +673,12 @@ class VideoCaptionDatasetCLIP(VideoCaptionDatasetBase):
         self.narration_selection = narration_selection
         self.num_hard_negatives = num_hard_negatives
         if num_hard_negatives > 0:
-            assert self.dataset == 'htm_aa'
+            assert self.dataset == "htm_aa"
 
     def __getitem__(self, i):
         frames, caption = self.get_raw_item(
-            i, is_training=self.is_training,
+            i,
+            is_training=self.is_training,
             clip_length=self.clip_length,
             clip_stride=self.clip_stride,
             sparse_sample=self.sparse_sample,
@@ -488,7 +689,7 @@ class VideoCaptionDatasetCLIP(VideoCaptionDatasetBase):
         if isinstance(caption, tuple):
             caption, relevancy = caption
         else:
-            relevancy = 0.
+            relevancy = 0.0
 
         # apply transformation
         if self.transform is not None:
@@ -506,10 +707,19 @@ class VideoCaptionDatasetCLIP(VideoCaptionDatasetBase):
 
 
 class VideoCaptionDatasetMCQ(VideoCaptionDatasetBase):
-    def __init__(self, dataset, root, metadata, transform=None,
-                 is_training=True, tokenizer=None,
-                 clip_length=32, clip_stride=2, sparse_sample=False,
-                 narration_selection='random'):
+    def __init__(
+        self,
+        dataset,
+        root,
+        metadata,
+        transform=None,
+        is_training=True,
+        tokenizer=None,
+        clip_length=32,
+        clip_stride=2,
+        sparse_sample=False,
+        narration_selection="random",
+    ):
         super().__init__(dataset, root, metadata)
 
         self.full_samples = self.samples.copy()
@@ -523,8 +733,15 @@ class VideoCaptionDatasetMCQ(VideoCaptionDatasetBase):
 
     def __getitem__(self, i):
 
-        textQuery, frames_options, narration_options, answerIndex, q_type = self.get_raw_item(
-            i, is_training=self.is_training,
+        (
+            textQuery,
+            frames_options,
+            narration_options,
+            answerIndex,
+            q_type,
+        ) = self.get_raw_item(
+            i,
+            is_training=self.is_training,
             clip_length=self.clip_length,
             clip_stride=self.clip_stride,
             sparse_sample=self.sparse_sample,
@@ -543,20 +760,38 @@ class VideoCaptionDatasetMCQ(VideoCaptionDatasetBase):
                 textQuery, mask_query = textQuery
                 narration_options, mask_options = narration_options
                 return (
-                    textQuery, torch.stack(frames_options, dim=0),
-                    narration_options, answerIndex, q_type,
-                    mask_query, mask_options
+                    textQuery,
+                    torch.stack(frames_options, dim=0),
+                    narration_options,
+                    answerIndex,
+                    q_type,
+                    mask_query,
+                    mask_options,
                 )
             else:
-                return textQuery, torch.stack(frames_options, dim=0), narration_options, answerIndex, q_type
-
+                return (
+                    textQuery,
+                    torch.stack(frames_options, dim=0),
+                    narration_options,
+                    answerIndex,
+                    q_type,
+                )
 
 
 class VideoCaptionDatasetMCQ_v2t(VideoCaptionDatasetBase):
-    def __init__(self, dataset, root, metadata, transform=None,
-                 is_training=True, tokenizer=None,
-                 clip_length=32, clip_stride=2, sparse_sample=False,
-                 narration_selection='random'):
+    def __init__(
+        self,
+        dataset,
+        root,
+        metadata,
+        transform=None,
+        is_training=True,
+        tokenizer=None,
+        clip_length=32,
+        clip_stride=2,
+        sparse_sample=False,
+        narration_selection="random",
+    ):
         super().__init__(dataset, root, metadata)
 
         self.full_samples = self.samples.copy()
@@ -570,8 +805,16 @@ class VideoCaptionDatasetMCQ_v2t(VideoCaptionDatasetBase):
 
     def __getitem__(self, i):
 
-        videoQuery, frames_options, narration_options, answerIndex, q_type, textQuery = self.get_raw_item(
-            i, is_training=self.is_training,
+        (
+            videoQuery,
+            frames_options,
+            narration_options,
+            answerIndex,
+            q_type,
+            textQuery,
+        ) = self.get_raw_item(
+            i,
+            is_training=self.is_training,
             clip_length=self.clip_length,
             clip_stride=self.clip_stride,
             sparse_sample=self.sparse_sample,
@@ -590,17 +833,40 @@ class VideoCaptionDatasetMCQ_v2t(VideoCaptionDatasetBase):
                 textQuery, mask_query = textQuery
                 narration_options, mask_options = narration_options
                 return (
-                    textQuery, torch.stack(frames_options, dim=0),
-                    narration_options, answerIndex, q_type,
-                    mask_query, mask_options, frameQuery
+                    textQuery,
+                    torch.stack(frames_options, dim=0),
+                    narration_options,
+                    answerIndex,
+                    q_type,
+                    mask_query,
+                    mask_options,
+                    frameQuery,
                 )
             else:
-                return textQuery, torch.stack(frames_options, dim=0), narration_options, answerIndex, q_type, frameQuery
+                return (
+                    textQuery,
+                    torch.stack(frames_options, dim=0),
+                    narration_options,
+                    answerIndex,
+                    q_type,
+                    frameQuery,
+                )
+
+
 class VideoCaptionDatasetHOI(VideoCaptionDatasetBase):
-    def __init__(self, dataset, root, metadata, transform=None,
-                 is_training=True, tokenizer=None,
-                 clip_length=32, clip_stride=2, sparse_sample=False,
-                 narration_selection='random'):
+    def __init__(
+        self,
+        dataset,
+        root,
+        metadata,
+        transform=None,
+        is_training=True,
+        tokenizer=None,
+        clip_length=32,
+        clip_stride=2,
+        sparse_sample=False,
+        narration_selection="random",
+    ):
         super().__init__(dataset, root, metadata)
 
         self.full_samples = self.samples.copy()
@@ -615,7 +881,8 @@ class VideoCaptionDatasetHOI(VideoCaptionDatasetBase):
     def __getitem__(self, i):
 
         textQuery, frames, verb_choice, noun_choice = self.get_raw_item(
-            i, is_training=self.is_training,
+            i,
+            is_training=self.is_training,
             clip_length=self.clip_length,
             clip_stride=self.clip_stride,
             sparse_sample=self.sparse_sample,
@@ -649,10 +916,19 @@ class VideoCaptionDatasetHOI(VideoCaptionDatasetBase):
 
 
 class VideoCaptionDatasetEgohoi(VideoCaptionDatasetBase):
-    def __init__(self, dataset, root, metadata, transform=None,
-                 is_training=True, tokenizer=None,
-                 clip_length=32, clip_stride=2, sparse_sample=False,
-                 narration_selection='random'):
+    def __init__(
+        self,
+        dataset,
+        root,
+        metadata,
+        transform=None,
+        is_training=True,
+        tokenizer=None,
+        clip_length=32,
+        clip_stride=2,
+        sparse_sample=False,
+        narration_selection="random",
+    ):
         super().__init__(dataset, root, metadata)
 
         self.full_samples = self.samples.copy()
@@ -669,19 +945,20 @@ class VideoCaptionDatasetEgohoi(VideoCaptionDatasetBase):
     def __getitem__(self, i):
 
         textQuery, frames, verb_neg, noun_neg = self.get_raw_item(
-            i, is_training=self.is_training,
+            i,
+            is_training=self.is_training,
             clip_length=self.clip_length,
             clip_stride=self.clip_stride,
             sparse_sample=self.sparse_sample,
             narration_selection=self.narration_selection,
         )
-        
+
         sample = self.samples.iloc[i]
 
         noun_vec = torch.zeros(self.noun_dim)
         verb_vec = torch.zeros(self.verb_dim)
-        noun_idx = eval(sample['tag_noun'])
-        verb_idx = eval(sample['tag_verb'])
+        noun_idx = eval(sample["tag_noun"])
+        verb_idx = eval(sample["tag_verb"])
         for i in noun_idx:
             noun_vec[i] = 1
         for i in verb_idx:
@@ -717,10 +994,16 @@ class VideoCaptionDatasetEgohoi(VideoCaptionDatasetBase):
 
 class VideoClassyDataset(VideoCaptionDatasetBase):
     def __init__(
-        self, dataset, root, metadata, transform=None,
-        is_training=True, label_mapping=None,
+        self,
+        dataset,
+        root,
+        metadata,
+        transform=None,
+        is_training=True,
+        label_mapping=None,
         num_clips=1,
-        clip_length=32, clip_stride=2,
+        clip_length=32,
+        clip_stride=2,
         sparse_sample=False,
         is_trimmed=True,
     ):
@@ -736,7 +1019,8 @@ class VideoClassyDataset(VideoCaptionDatasetBase):
 
     def __getitem__(self, i):
         frames, label = self.get_raw_item(
-            i, is_training=self.is_training,
+            i,
+            is_training=self.is_training,
             num_clips=self.num_clips,
             clip_length=self.clip_length,
             clip_stride=self.clip_stride,
@@ -752,7 +1036,7 @@ class VideoClassyDataset(VideoCaptionDatasetBase):
                 # multi-label case
                 res_array = np.zeros(len(self.label_mapping))
                 for lbl in label:
-                    res_array[self.label_mapping[lbl]] = 1.
+                    res_array[self.label_mapping[lbl]] = 1.0
                 label = res_array
             else:
                 label = self.label_mapping[label]
@@ -761,39 +1045,55 @@ class VideoClassyDataset(VideoCaptionDatasetBase):
 
 
 def get_dataset(train_transform, tokenizer, args, is_training=True):
-    if 'narration_selection' not in args:
-        args.narration_selection = 'random'
-    if args.model.startswith('CLIP') or args.model.startswith('VCLM'):
+    if "narration_selection" not in args:
+        args.narration_selection = "random"
+    if args.model.startswith("CLIP") or args.model.startswith("VCLM"):
         return VideoCaptionDatasetCLIP(
-            args.dataset, args.root, args.metadata, train_transform,
+            args.dataset,
+            args.root,
+            args.metadata,
+            train_transform,
             is_training=is_training,
             tokenizer=tokenizer,
-            clip_length=args.clip_length, clip_stride=args.clip_stride,
+            clip_length=args.clip_length,
+            clip_stride=args.clip_stride,
             sparse_sample=args.sparse_sample,
             narration_selection=args.narration_selection,
-            num_hard_negatives=args.num_hard_neg if 'num_hard_neg' in args else 0,
+            num_hard_negatives=args.num_hard_neg if "num_hard_neg" in args else 0,
         )
     else:
         raise NotImplementedError
 
 
-def get_downstream_dataset(transform, tokenizer, args, subset='train', label_mapping=None):
-    if subset == 'train':
+def get_downstream_dataset(
+    transform, tokenizer, args, subset="train", label_mapping=None
+):
+    if subset == "train":
         return VideoClassyDataset(
-            args.dataset, args.root, args.metadata_train, transform,
-            is_training=True, label_mapping=label_mapping,
+            args.dataset,
+            args.root,
+            args.metadata_train,
+            transform,
+            is_training=True,
+            label_mapping=label_mapping,
             num_clips=args.num_clips,
-            clip_length=args.clip_length, clip_stride=args.clip_stride,
+            clip_length=args.clip_length,
+            clip_stride=args.clip_stride,
             sparse_sample=args.sparse_sample,
         )
-    elif subset == 'val':
+    elif subset == "val":
         return VideoClassyDataset(
-            args.dataset, args.root, args.metadata_val, transform,
-            is_training=False, label_mapping=label_mapping,
+            args.dataset,
+            args.root,
+            args.metadata_val,
+            transform,
+            is_training=False,
+            label_mapping=label_mapping,
             num_clips=args.num_clips,
-            clip_length=args.clip_length, clip_stride=args.clip_stride,
+            clip_length=args.clip_length,
+            clip_stride=args.clip_stride,
             sparse_sample=args.sparse_sample,
-            is_trimmed=not args.dataset == 'charades_ego'
+            is_trimmed=not args.dataset == "charades_ego",
         )
     else:
         assert ValueError("subset should be either 'train' or 'val'")

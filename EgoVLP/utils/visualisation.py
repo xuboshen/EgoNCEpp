@@ -2,7 +2,7 @@ import matplotlib
 import numpy as np
 import torch
 
-matplotlib.use('Agg')
+matplotlib.use("Agg")
 
 
 def visualise_path(pred, target, window):
@@ -44,7 +44,7 @@ def batch_path_vis(pred_dict, target, window):
     window = window.cpu()
     for key, pred in pred_dict.items():
         tmp_window = window
-        if key == 'min_dist':
+        if key == "min_dist":
             tmp_window = torch.zeros_like(window)
         grids.append(visualise_path(pred, target, tmp_window))
 

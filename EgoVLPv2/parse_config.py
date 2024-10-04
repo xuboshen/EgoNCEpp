@@ -5,22 +5,23 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import os
+import inspect
 import logging
+import os
 import pdb
-from pathlib import Path
+import time
+from datetime import datetime
 from functools import reduce
 from operator import getitem
-from datetime import datetime
+from pathlib import Path
+
 # import pdb; pdb.set_trace()
 from logger import setup_logging
 from utils import read_json, write_json
-import time
-import inspect
 
 
 class ConfigParser:
-    def __init__(self, args, options='', timestamp=True, test=False, eval_mode=None):
+    def __init__(self, args, options="", timestamp=True, test=False, eval_mode=None):
         # parse default and custom cli options
         for opt in options:
             args.add_argument(*opt.flags, default=None, type=opt.type)
@@ -38,13 +39,13 @@ class ConfigParser:
             self.resume = Path(args.resume)
             resume_cfg_fname = Path(args.config)
             if eval_mode == "epic":
-                resume_cfg_fname = Path('configs/eval/epic.json')
+                resume_cfg_fname = Path("configs/eval/epic.json")
             if eval_mode == "charades":
-                resume_cfg_fname = Path('configs/eval/charades.json')
+                resume_cfg_fname = Path("configs/eval/charades.json")
             if eval_mode == "nlq":
-                resume_cfg_fname = Path('configs/eval/nlq.json')
+                resume_cfg_fname = Path("configs/eval/nlq.json")
             if eval_mode == "mq":
-                resume_cfg_fname = Path('configs/eval/mq.json')
+                resume_cfg_fname = Path("configs/eval/mq.json")
 
             config = read_json(resume_cfg_fname)
             if args.config is not None:
@@ -54,17 +55,17 @@ class ConfigParser:
         self._config = _update_config(config, options, args)
 
         # set save_dir where trained model and log will be saved.
-        #save_dir = Path(self.config['trainer']['save_dir'])
+        # save_dir = Path(self.config['trainer']['save_dir'])
         save_dir = Path(args.save_dir)
         # timestamp = datetime.now().strftime(r'%m%d_%H%M%S') if timestamp else ''
-        timestamp = datetime.now().strftime(r'%m%d_%H') if timestamp else ''
+        timestamp = datetime.now().strftime(r"%m%d_%H") if timestamp else ""
 
-        exper_name = self.config['name']
+        # exper_name = self.config["name"]
 
-        self._save_dir = save_dir / 'models' /  timestamp
-        self._web_log_dir = save_dir / 'web' /  timestamp
-        self._log_dir = save_dir / 'log' /  timestamp
-        self._tf_dir = save_dir / 'tf' / timestamp
+        self._save_dir = save_dir / "models" / timestamp
+        self._web_log_dir = save_dir / "web" / timestamp
+        self._log_dir = save_dir / "log" / timestamp
+        self._tf_dir = save_dir / "tf" / timestamp
 
         if not test:
             self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -83,15 +84,11 @@ class ConfigParser:
 
         # save updated config file to the checkpoint dir
         if not test:
-            write_json(self.config, self.save_dir / 'config.json')
+            write_json(self.config, self.save_dir / "config.json")
 
             # configure logging module
             setup_logging(self.log_dir)
-            self.log_levels = {
-                0: logging.WARNING,
-                1: logging.INFO,
-                2: logging.DEBUG
-            }
+            self.log_levels = {0: logging.WARNING, 1: logging.INFO, 2: logging.DEBUG}
 
     def initialize(self, name, module, *args, index=None, **kwargs):
         """
@@ -99,13 +96,15 @@ class ConfigParser:
         instance initialized with corresponding keyword args given as 'args'.
         """
         if index is None:
-            module_name = self[name]['type']
-            module_args = dict(self[name]['args'])
-            assert all([k not in module_args for k in kwargs]), 'Overwriting kwargs given in config file is not allowed'
+            module_name = self[name]["type"]
+            module_args = dict(self[name]["args"])
+            assert all(
+                [k not in module_args for k in kwargs]
+            ), "Overwriting kwargs given in config file is not allowed"
             module_args.update(kwargs)
         else:
-            module_name = self[name][index]['type']
-            module_args = dict(self[name][index]['args'])
+            module_name = self[name][index]["type"]
+            module_args = dict(self[name][index]["args"])
 
         # if parameter not in config subdict, then check if it's in global config.
         signature = inspect.signature(getattr(module, module_name).__init__)
@@ -113,9 +112,9 @@ class ConfigParser:
         for param in signature.parameters.keys():
             if param not in module_args and param in self.config:
                 module_args[param] = self[param]
-            if module_name == 'FrozenInTime' and param == 'args':
+            if module_name == "FrozenInTime" and param == "args":
                 module_args[param] = self.args
-            if module_name == 'MultiDistTextVideoDataLoader' and param == 'args':
+            if module_name == "MultiDistTextVideoDataLoader" and param == "args":
                 module_args[param] = self.args
 
         return getattr(module, module_name)(*args, **module_args)
@@ -124,8 +123,9 @@ class ConfigParser:
         return self.config[name]
 
     def get_logger(self, name, verbosity=2):
-        msg_verbosity = 'verbosity option {} is invalid. Valid options are {}.'.format(verbosity,
-                                                                                       self.log_levels.keys())
+        msg_verbosity = "verbosity option {} is invalid. Valid options are {}.".format(
+            verbosity, self.log_levels.keys()
+        )
         assert verbosity in self.log_levels, msg_verbosity
         logger = logging.getLogger(name)
         logger.setLevel(self.log_levels[verbosity])
@@ -148,6 +148,7 @@ class ConfigParser:
     def tf_dir(self):
         return self._tf_dir
 
+
 # helper functions used to update config dict with custom cli options
 def _update_config(config, options, args):
     for opt in options:
@@ -159,9 +160,9 @@ def _update_config(config, options, args):
 
 def _get_opt_name(flags):
     for flg in flags:
-        if flg.startswith('--'):
-            return flg.replace('--', '')
-    return flags[0].replace('--', '')
+        if flg.startswith("--"):
+            return flg.replace("--", "")
+    return flags[0].replace("--", "")
 
 
 def _set_by_path(tree, keys, value):

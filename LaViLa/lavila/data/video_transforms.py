@@ -6,6 +6,7 @@
 
 import math
 from typing import Sequence
+
 import torch
 import torch.nn as nn
 from torchvision import transforms
@@ -50,7 +51,7 @@ class TemporalCrop(nn.Module):
             0, video.size(1) - (self.frames * self.frame_stride) + 1, self.stride
         ):
             end = start + (self.frames) * self.frame_stride
-            res.append(video[:, start: end: self.frame_stride, ...])
+            res.append(video[:, start : end : self.frame_stride, ...])
         return res
 
 
@@ -125,7 +126,7 @@ def uniform_crop(images, size, spatial_idx, boxes=None, scale_size=None):
             x_offset = 0
         elif spatial_idx == 2:
             x_offset = width - size
-    cropped = images[:, :, y_offset: y_offset + size, x_offset: x_offset + size]
+    cropped = images[:, :, y_offset : y_offset + size, x_offset : x_offset + size]
     cropped_boxes = crop_boxes(boxes, x_offset, y_offset) if boxes is not None else None
     if ndim == 3:
         cropped = cropped.squeeze(0)

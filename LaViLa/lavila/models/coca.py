@@ -11,8 +11,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import einsum
 from einops import rearrange
+from torch import einsum
 
 
 def exists(val):
@@ -66,7 +66,7 @@ class CrossAttention(nn.Module):
     ):
         super().__init__()
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
         inner_dim = heads * dim_head
         context_dim = default(context_dim, dim)
 
@@ -81,11 +81,15 @@ class CrossAttention(nn.Module):
 
         ff_inner_dim = ff_mult * dim
 
-        self.ff = nn.Sequential(
-            nn.Linear(dim, ff_inner_dim * 2, bias=False),
-            SwiGLU(),
-            nn.Linear(ff_inner_dim, dim, bias=False)
-        ) if parallel_ff else None
+        self.ff = (
+            nn.Sequential(
+                nn.Linear(dim, ff_inner_dim * 2, bias=False),
+                SwiGLU(),
+                nn.Linear(ff_inner_dim, dim, bias=False),
+            )
+            if parallel_ff
+            else None
+        )
 
     def forward(self, x, context):
         """
@@ -102,7 +106,7 @@ class CrossAttention(nn.Module):
 
         # get queries
         q = self.to_q(x)
-        q = rearrange(q, 'b n (h d) -> b h n d', h=self.heads)
+        q = rearrange(q, "b n (h d) -> b h n d", h=self.heads)
 
         # scale
         q = q * self.scale
@@ -111,17 +115,17 @@ class CrossAttention(nn.Module):
         k, v = self.to_kv(context).chunk(2, dim=-1)
 
         # query / key similarity
-        sim = einsum('b h i d, b j d -> b h i j', q, k)
+        sim = einsum("b h i d, b j d -> b h i j", q, k)
 
         # attention
         sim = sim - sim.amax(dim=-1, keepdim=True)
         attn = sim.softmax(dim=-1)
 
         # aggregate
-        out = einsum('b h i j, b j d -> b h i d', attn, v)
+        out = einsum("b h i j, b j d -> b h i d", attn, v)
 
         # merge and combine heads
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = rearrange(out, "b h n d -> b n (h d)")
         out = self.to_out(out)
 
         # add parallel feedforward (for multimodal layers)

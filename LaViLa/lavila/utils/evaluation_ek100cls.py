@@ -12,14 +12,14 @@ import numpy as np
 
 def get_marginal_indexes(actions, mode):
     """For each verb/noun retrieve the list of actions containing that verb/name
-        Input:
-            mode: "verb" or "noun"
-        Output:
-            a list of numpy array of indexes. If verb/noun 3 is contained in actions 2,8,19,
-            then output[3] will be np.array([2,8,19])
+    Input:
+        mode: "verb" or "noun"
+    Output:
+        a list of numpy array of indexes. If verb/noun 3 is contained in actions 2,8,19,
+        then output[3] will be np.array([2,8,19])
     """
     vi = []
-    for v in range(actions[mode].max()+1):
+    for v in range(actions[mode].max() + 1):
         vals = actions[actions[mode] == v].index.values
         if len(vals) > 0:
             vi.append(vals)

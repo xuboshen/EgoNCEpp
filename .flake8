@@ -1,0 +1,15 @@
+[flake8]
+ignore = E203, E266, E501, W503, F403, F401, E402, C901, E722
+max-line-length = 89
+max-complexity = 25
+select = B,C,E,F,W,T4,B9
+
+# Ignored rules
+#   E203: whitespace
+#   E266: too many ###
+#   E501: line too long
+#   F403: imported but not used
+#   F401: line breaks before binary operators
+#   E402: module level import not at top of file
+#   C901: 'main' is too complex (49)
+#   E722: do not use bare 'except'

@@ -16,8 +16,7 @@ import numpy as np
 def calculate_DCG(similarity_matrix, relevancy_matrix, k_counts):
     """
     Calculates the Discounted Cumulative Gain (DCG) between two modalities for
-    the first modality.
-    DCG = \sum_{i=1}^k \frac{rel_i}{log_2(i + 1)}
+    the first modality. DCG = sum_{i=1}^k frac{rel_i}{log_2(i + 1)}
     i.e. the sum of the k relevant retrievals which is calculated as the scaled
     relevancy for the ith item. The scale is designed such that early
     retrievals are more important than later retrievals.
@@ -104,7 +103,9 @@ def calculate_IDCG(relevancy_matrix, k_counts):
     return calculate_DCG(relevancy_matrix, relevancy_matrix, k_counts)
 
 
-def calculate_nDCG(similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None, reduction='mean'):
+def calculate_nDCG(
+    similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None, reduction="mean"
+):
     """
     Calculates the normalised Discounted Cumulative Gain (nDCG) between two
     modalities for the first modality using the Discounted Cumulative Gain
@@ -140,7 +141,7 @@ def calculate_nDCG(similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None
     DCG = calculate_DCG(similarity_matrix, relevancy_matrix, k_counts)
     if IDCG is None:
         IDCG = calculate_IDCG(relevancy_matrix, k_counts)
-    if reduction == 'mean':
+    if reduction == "mean":
         return np.mean(DCG / IDCG)
     elif reduction is None:
         return DCG / IDCG
@@ -149,8 +150,7 @@ def calculate_nDCG(similarity_matrix, relevancy_matrix, k_counts=None, IDCG=None
 def calculate_mAP(sim_mat, relevancy_matrix):
     """
     Computes the mean average precision according to the following formula of
-    average precision:
-    \frac{\sum_{k=1}^n p(k) x rel(k)}{num_rel_docs}
+    average precision: frac{sum_{k=1}^n p(k) x rel(k)}{num_rel_docs}
     where p(k) is the precision at k, rel(k) is an indicator function
     determining whether the kth returned item is relevant or not and
     num_rel_docs is the number of relevant items to find within the search.
@@ -165,9 +165,11 @@ def calculate_mAP(sim_mat, relevancy_matrix):
     """
     # Find the order of the items in modality 2 according to modality 1
     ranked_order = (-sim_mat).argsort()
-    ranked_sim_mat = sim_mat[np.arange(sim_mat.shape[0])[:, None], ranked_order]
+    # ranked_sim_mat = sim_mat[np.arange(sim_mat.shape[0])[:, None], ranked_order]
     # re-order the relevancy matrix to accommodate the proposals
-    ranked_rel_mat = relevancy_matrix[np.arange(relevancy_matrix.shape[0])[:, None], ranked_order]
+    ranked_rel_mat = relevancy_matrix[
+        np.arange(relevancy_matrix.shape[0])[:, None], ranked_order
+    ]
 
     # find the number of relevant items found at each k
     cumulative_rel_mat = np.cumsum(ranked_rel_mat, axis=1)
@@ -196,6 +198,10 @@ def get_nDCG(similarity_matrix, rel_matrix):
     txt_k_counts = calculate_k_counts(rel_matrix.T)
     vis_IDCG = calculate_IDCG(rel_matrix, vis_k_counts)
     txt_IDCG = calculate_IDCG(rel_matrix.T, txt_k_counts)
-    vis_nDCG = calculate_nDCG(similarity_matrix, rel_matrix, k_counts=vis_k_counts, IDCG=vis_IDCG)
-    txt_nDCG = calculate_nDCG(similarity_matrix.T, rel_matrix.T, k_counts=txt_k_counts, IDCG=txt_IDCG)
+    vis_nDCG = calculate_nDCG(
+        similarity_matrix, rel_matrix, k_counts=vis_k_counts, IDCG=vis_IDCG
+    )
+    txt_nDCG = calculate_nDCG(
+        similarity_matrix.T, rel_matrix.T, k_counts=txt_k_counts, IDCG=txt_IDCG
+    )
     return vis_nDCG, txt_nDCG, (vis_nDCG + txt_nDCG) / 2

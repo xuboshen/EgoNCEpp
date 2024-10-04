@@ -1,16 +1,30 @@
 import os
 
 import dominate
-from dominate.tags import a, attr, br, h3, img, meta, p, source, span, table, td, tr, video
+from dominate.tags import (
+    a,
+    attr,
+    br,
+    h3,
+    img,
+    meta,
+    p,
+    source,
+    span,
+    table,
+    td,
+    tr,
+    video,
+)
 
 
 class HTML:
     """This HTML class allows us to save images and write texts into a single HTML file.
 
-     It consists of functions such as <add_header> (add a text header to the HTML file),
-     <add_images> (add a row of images to the HTML file), and <save> (save the HTML to the disk).
-     It is based on Python library 'dominate', a Python library for creating and
-     manipulating HTML documents using a DOM API.
+    It consists of functions such as <add_header> (add a text header to the HTML file),
+    <add_images> (add a row of images to the HTML file), and <save> (save the HTML to the disk).
+    It is based on Python library 'dominate', a Python library for creating and
+    manipulating HTML documents using a DOM API.
     """
 
     def __init__(self, web_dir, title, refresh=0):
@@ -85,7 +99,7 @@ class HTML:
                                     s_style = "color:{};".format(color)
                                 else:
                                     s_style = "color:black; font-weight: bold;"
-                                    row = row[len(bold_tag):]
+                                    row = row[len(bold_tag) :]
                                 span(row, style=s_style)
 
     def add_images(self, ims, txts, links, width=400):
@@ -120,7 +134,7 @@ class HTML:
                                     s_style = "color:{};".format(color)
                                 else:
                                     s_style = "color:black; font-weight: bold;"
-                                    row = row[len(bold_tag):]
+                                    row = row[len(bold_tag) :]
                                 span(row, style=s_style)
 
     def save(self):

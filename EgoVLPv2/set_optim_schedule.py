@@ -4,13 +4,13 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-
-from transformers.optimization import AdamW
+import torch
 from transformers import (
     get_constant_schedule,
-    get_polynomial_decay_schedule_with_warmup,
     get_cosine_schedule_with_warmup,
+    get_polynomial_decay_schedule_with_warmup,
 )
+from transformers.optimization import AdamW
 
 
 def set_schedule(model, config, config_yaml, max_steps, warmup_steps):
@@ -105,7 +105,9 @@ def set_schedule(model, config, config_yaml, max_steps, warmup_steps):
     ]
 
     if optim_type == "AdamW":
-        optimizer = AdamW(optimizer_grouped_parameters, lr=lr, eps=1e-8, betas=(0.9, 0.98))
+        optimizer = AdamW(
+            optimizer_grouped_parameters, lr=lr, eps=1e-8, betas=(0.9, 0.98)
+        )
     elif optim_type == "adam":
         optimizer = torch.optim.Adam(optimizer_grouped_parameters, lr=lr)
     elif optim_type == "sgd":
@@ -130,7 +132,7 @@ def set_schedule(model, config, config_yaml, max_steps, warmup_steps):
 
 
 def set_schedule_constant(model, config, config_yaml, max_steps, warmup_steps):
-    
+
     lr = config["optimizer"]["args"]["lr"]
     wd = config["optimizer"]["args"]["weight_decay"]
 
@@ -149,8 +151,8 @@ def set_schedule_constant(model, config, config_yaml, max_steps, warmup_steps):
     cross_modal_names = ["cross_modal", "i2t", "t2i"]
     lr_mult_head = config["optimizer"]["args"]["lr_mult_head"]
     lr_mult_cross_modal = config["optimizer"]["args"]["lr_mult_cross_modal"]
-    end_lr = config_yaml["end_lr"]
-    decay_power = config_yaml["decay_power"]
+    # end_lr = config_yaml["end_lr"]
+    # decay_power = config_yaml["decay_power"]
     optim_type = config["optimizer"]["type"]
 
     optimizer_grouped_parameters = [
@@ -224,7 +226,7 @@ def set_schedule_constant(model, config, config_yaml, max_steps, warmup_steps):
 
     if optim_type == "AdamW":
         optimizer = AdamW(model.parameters(), lr=lr)
-        #optimizer = AdamW(list(model.txt_proj.parameters()) + list(model.vid_proj.parameters()), lr=lr, eps=1e-8, betas=(0.9, 0.98))
+        # optimizer = AdamW(list(model.txt_proj.parameters()) + list(model.vid_proj.parameters()), lr=lr, eps=1e-8, betas=(0.9, 0.98))
     elif optim_type == "adam":
         optimizer = torch.optim.Adam(optimizer_grouped_parameters, lr=lr)
     elif optim_type == "sgd":

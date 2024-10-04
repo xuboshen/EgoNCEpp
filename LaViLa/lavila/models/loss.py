@@ -5,7 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import numpy as np
-
 import torch
 import torch.distributed as dist
 import torch.distributed.nn
@@ -16,21 +15,29 @@ from .distributed_utils import gather_from_all
 
 
 def gather_features(
-        image_features,
-        text_features,
-        local_loss=False,
-        gather_with_grad=False,
-        rank=0,
-        world_size=1,
+    image_features,
+    text_features,
+    local_loss=False,
+    gather_with_grad=False,
+    rank=0,
+    world_size=1,
 ):
     # Adapted from: https://github.com/mlfoundations/open_clip/blob/main/src/open_clip/loss.py
     # We gather tensors from all gpus
     if gather_with_grad:
-        all_image_features = torch.cat(torch.distributed.nn.all_gather(image_features), dim=0)
-        all_text_features = torch.cat(torch.distributed.nn.all_gather(text_features), dim=0)
+        all_image_features = torch.cat(
+            torch.distributed.nn.all_gather(image_features), dim=0
+        )
+        all_text_features = torch.cat(
+            torch.distributed.nn.all_gather(text_features), dim=0
+        )
     else:
-        gathered_image_features = [torch.zeros_like(image_features) for _ in range(world_size)]
-        gathered_text_features = [torch.zeros_like(text_features) for _ in range(world_size)]
+        gathered_image_features = [
+            torch.zeros_like(image_features) for _ in range(world_size)
+        ]
+        gathered_text_features = [
+            torch.zeros_like(text_features) for _ in range(world_size)
+        ]
         dist.all_gather(gathered_image_features, image_features)
         dist.all_gather(gathered_text_features, text_features)
         if not local_loss:
@@ -44,15 +51,14 @@ def gather_features(
 
 
 class CLIPLoss(nn.Module):
-
     def __init__(
-            self,
-            use_vissl=False,
-            local_loss=False,
-            gather_with_grad=False,
-            cache_labels=False,
-            rank=0,
-            world_size=1,
+        self,
+        use_vissl=False,
+        local_loss=False,
+        gather_with_grad=False,
+        cache_labels=False,
+        rank=0,
+        world_size=1,
     ):
         super().__init__()
         self.use_vissl = use_vissl
@@ -67,26 +73,37 @@ class CLIPLoss(nn.Module):
         self.labels = {}
 
     def forward(self, outputs):
-        image_features = outputs['image_embed']
-        text_features = outputs['text_embed']
-        logit_scale = outputs['logit_scale']
+        image_features = outputs["image_embed"]
+        text_features = outputs["text_embed"]
+        logit_scale = outputs["logit_scale"]
         device = image_features.device
         if self.world_size > 1:
             if self.use_vissl:
                 all_image_features = gather_from_all(image_features)
                 all_text_features = gather_from_all(text_features)
-                logits_per_image = logit_scale * all_image_features @ all_text_features.T
+                logits_per_image = (
+                    logit_scale * all_image_features @ all_text_features.T
+                )
                 logits_per_text = logits_per_image.T
             else:
                 all_image_features, all_text_features = gather_features(
-                    image_features, text_features,
-                    self.local_loss, self.gather_with_grad, self.rank, self.world_size)
+                    image_features,
+                    text_features,
+                    self.local_loss,
+                    self.gather_with_grad,
+                    self.rank,
+                    self.world_size,
+                )
 
                 if self.local_loss:
-                    logits_per_image = logit_scale * image_features @ all_text_features.T
+                    logits_per_image = (
+                        logit_scale * image_features @ all_text_features.T
+                    )
                     logits_per_text = logit_scale * text_features @ all_image_features.T
                 else:
-                    logits_per_image = logit_scale * all_image_features @ all_text_features.T
+                    logits_per_image = (
+                        logit_scale * all_image_features @ all_text_features.T
+                    )
                     logits_per_text = logits_per_image.T
         else:
             logits_per_image = logit_scale * image_features @ text_features.T
@@ -105,9 +122,9 @@ class CLIPLoss(nn.Module):
             labels = self.labels[device]
 
         loss = (
-            F.cross_entropy(logits_per_image, labels) +
-            F.cross_entropy(logits_per_text, labels)
-            ) / 2
+            F.cross_entropy(logits_per_image, labels)
+            + F.cross_entropy(logits_per_text, labels)
+        ) / 2
 
         # compute accuracy
         with torch.no_grad():
@@ -115,8 +132,7 @@ class CLIPLoss(nn.Module):
             correct = pred.eq(labels).sum()
             acc = 100 * correct / logits_per_image.size(0)
 
-        return {'loss': loss, 'clip_loss': loss, 'clip_acc': acc}
-
+        return {"loss": loss, "clip_loss": loss, "clip_acc": acc}
 
 
 class EgoCLIP_HOILoss(nn.Module):
@@ -124,6 +140,7 @@ class EgoCLIP_HOILoss(nn.Module):
         super().__init__()
         self.noun = noun
         self.temperature = temperature
+
     def forward(self, video_embeds, pos_txt, neg_txt, n_embeds):
         n_embeds = gather_from_all(n_embeds)
         video_embeds = gather_from_all(video_embeds)
@@ -132,54 +149,55 @@ class EgoCLIP_HOILoss(nn.Module):
         output = sim_matrix(pos_txt, video_embeds)
         output_hal = sim_matrix(neg_txt, video_embeds)
         sim_n = n_embeds @ n_embeds.T
-        return {'loss' : self.get_loss(output, output_hal, sim_n)}
+        return {"loss": self.get_loss(output, output_hal, sim_n)}
 
     def get_loss(self, x, hal_x, mask_n):
-        "Assumes input x is similarity matrix of N x N \in [-1, 1], computed using the cosine similarity between normalised vectors"
-        "        input hal_x is                  10*N x N \in [-1, 1]"
+        "Assumes input x is similarity matrix of N x N in [-1, 1], computed using the cosine similarity between normalised vectors"
+        "        input hal_x is                  10*N x N in [-1, 1]"
         mask_diag = torch.eye(x.shape[0]).cuda()
         if self.noun:
             mask = mask_n + mask_diag
-        i_sm = F.softmax(x/self.temperature, dim=1)
+        i_sm = F.softmax(x / self.temperature, dim=1)
         # j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
         # sum over positives
         mask_bool = mask > 0
         i_mask = torch.zeros(i_sm.shape).to(mask_bool.device) + 1e-6
-        i_mask[:mask_bool.shape[0], :mask_bool.shape[1]] = mask_bool
-        idiag = torch.log(torch.sum(i_sm * i_mask, dim=1) )
+        i_mask[: mask_bool.shape[0], : mask_bool.shape[1]] = mask_bool
+        idiag = torch.log(torch.sum(i_sm * i_mask, dim=1))
         loss_i = idiag.sum() / len(idiag)
         # jdiag = torch.diag(j_logsm)
         # loss_j = jdiag.sum() / len(jdiag)
         neg_num, video_num = hal_x.shape[0] // hal_x.shape[1], hal_x.shape[1]
         # print(hal_x.shape)
-        hal_x = torch.stack([hal_x[i * neg_num: (i + 1) * neg_num, i] for i in range(video_num)], dim=1)# neg, video_num
+        hal_x = torch.stack(
+            [hal_x[i * neg_num : (i + 1) * neg_num, i] for i in range(video_num)], dim=1
+        )  # neg, video_num
 
         # hal_x= hal_x.reshape(video_num, neg_num, video_num)[:,:,0].reshape(10, -1)
         # hal_x = torch.diagonal(hal_x.reshape(neg_num, video_num, video_num), dim1=1, dim2=2)
         x = torch.cat([x, hal_x], dim=0)
         # sum over positives
         # import pdb; pdb.set_trace()
-        j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
+        j_logsm = F.log_softmax(x.t() / self.temperature, dim=1)
         jdiag = torch.diag(j_logsm)
         loss_hal = jdiag.sum() / len(jdiag)
 
-
-        original_cont = - loss_i # - loss_j
-        loss_hal = - loss_hal
+        original_cont = -loss_i  # - loss_j
+        loss_hal = -loss_hal
         return original_cont + loss_hal
 
-class SSLCLIPLoss(nn.Module):
 
+class SSLCLIPLoss(nn.Module):
     def __init__(
-            self,
-            use_vissl=False,
-            local_loss=False,
-            gather_with_grad=False,
-            cache_labels=False,
-            rank=0,
-            world_size=1,
-            scale_init=0.08,
-            freeze_scale=False,
+        self,
+        use_vissl=False,
+        local_loss=False,
+        gather_with_grad=False,
+        cache_labels=False,
+        rank=0,
+        world_size=1,
+        scale_init=0.08,
+        freeze_scale=False,
     ):
         super().__init__()
         self.use_vissl = use_vissl
@@ -197,9 +215,9 @@ class SSLCLIPLoss(nn.Module):
         self.labels = {}
 
     def forward(self, outputs, gt_indicators):
-        image_features = outputs['image_embed']
-        text_features = outputs['text_embed']
-        logit_scale = outputs['logit_scale']
+        image_features = outputs["image_embed"]
+        text_features = outputs["text_embed"]
+        logit_scale = outputs["logit_scale"]
         logit_scale_pseudo = self.logit_scale_pseudo.exp()
         device = image_features.device
         if self.world_size > 1:
@@ -208,12 +226,19 @@ class SSLCLIPLoss(nn.Module):
                 all_text_features = gather_from_all(text_features)
                 all_gt_indicators = gather_from_all(gt_indicators)
                 num = all_gt_indicators.shape[0]
-                mask = all_gt_indicators.repeat(num, 1) + all_gt_indicators.repeat(num, 1).T
+                mask = (
+                    all_gt_indicators.repeat(num, 1)
+                    + all_gt_indicators.repeat(num, 1).T
+                )
                 logit_scale_mat = torch.ones((num, num), device=device)
                 logit_scale_mat[mask == 0] = logit_scale_pseudo
-                logit_scale_mat[mask == 1] = torch.sqrt(logit_scale_pseudo * logit_scale)
+                logit_scale_mat[mask == 1] = torch.sqrt(
+                    logit_scale_pseudo * logit_scale
+                )
                 logit_scale_mat[mask == 2] = logit_scale
-                logits_per_image = logit_scale_mat * (all_image_features @ all_text_features.T)
+                logits_per_image = logit_scale_mat * (
+                    all_image_features @ all_text_features.T
+                )
                 logits_per_text = logits_per_image.T
             else:
                 raise NotImplementedError
@@ -241,9 +266,9 @@ class SSLCLIPLoss(nn.Module):
             labels = self.labels[device]
 
         loss = (
-            F.cross_entropy(logits_per_image, labels) +
-            F.cross_entropy(logits_per_text, labels)
-            ) / 2
+            F.cross_entropy(logits_per_image, labels)
+            + F.cross_entropy(logits_per_text, labels)
+        ) / 2
 
         # compute accuracy
         with torch.no_grad():
@@ -262,8 +287,13 @@ class SSLCLIPLoss(nn.Module):
             acc_pseudo = 100 * correct_pseudo / num_pseudo
 
         return {
-            'loss': loss, 'clip_loss': loss, 'num_gt': torch.tensor([num_gt]), 'num_pseudo': torch.tensor([num_pseudo]),
-            'clip_acc': acc, 'clip_acc_gt': acc_gt, 'clip_acc_pseudo': acc_pseudo
+            "loss": loss,
+            "clip_loss": loss,
+            "num_gt": torch.tensor([num_gt]),
+            "num_pseudo": torch.tensor([num_pseudo]),
+            "clip_acc": acc,
+            "clip_acc_gt": acc_gt,
+            "clip_acc_pseudo": acc_pseudo,
         }
 
 
@@ -275,15 +305,17 @@ class CaptionLoss(nn.Module):
         self.pad_id = tokenizer.pad_token_id
 
     def forward(self, outputs):
-        logits = outputs['text_tokens_logits']
-        labels = outputs['labels']
+        logits = outputs["text_tokens_logits"]
+        labels = outputs["labels"]
         # loss = F.cross_entropy(logits, labels, ignore_index=self.pad_id)
-        loss = F.cross_entropy(logits, labels, ignore_index=self.pad_id, reduction='none')
+        loss = F.cross_entropy(
+            logits, labels, ignore_index=self.pad_id, reduction="none"
+        )
 
         # compute accuracy
         with torch.no_grad():
-            correct = 0.
-            total = 0.
+            correct = 0.0
+            total = 0.0
             ppls = []
             for i in range(logits.size(0)):
                 pred = torch.argmax(logits[i], dim=0)
@@ -300,7 +332,12 @@ class CaptionLoss(nn.Module):
                 #         self.tokenizer.tokenizer.convert_ids_to_tokens(labels[i, :sep_pos]),
                 #     ))
             acc = 100 * correct / (total + 1e-8)
-        return {'loss': loss.mean(), 'caption_loss': loss.mean(), 'caption_acc': acc, 'ppl': torch.tensor(ppls).mean()}
+        return {
+            "loss": loss.mean(),
+            "caption_loss": loss.mean(),
+            "caption_acc": acc,
+            "ppl": torch.tensor(ppls).mean(),
+        }
 
 
 def sim_matrix(a, b, eps=1e-8):
@@ -315,7 +352,6 @@ def sim_matrix(a, b, eps=1e-8):
 
 
 class MaxMarginRankingLoss(nn.Module):
-
     def __init__(self, margin=0.2, fix_norm=True):
         super().__init__()
         self.fix_norm = fix_norm
@@ -323,8 +359,8 @@ class MaxMarginRankingLoss(nn.Module):
         self.margin = margin
 
     def forward(self, outputs, weight=None):
-        image_features = outputs['image_embed']
-        text_features = outputs['text_embed']
+        image_features = outputs["image_embed"]
+        text_features = outputs["text_embed"]
 
         all_image_features = gather_from_all(image_features)
         all_text_features = gather_from_all(text_features)
@@ -356,14 +392,10 @@ class MaxMarginRankingLoss(nn.Module):
             x2_ = torch.index_select(x2, dim=0, index=keep_idx)
             max_margin = F.relu(self.margin - (x1_ - x2_))
 
-        return {
-            'loss': max_margin.mean(),
-            'max_margin_loss': max_margin.mean()
-        }
+        return {"loss": max_margin.mean(), "max_margin_loss": max_margin.mean()}
 
 
 class AdaptiveMaxMarginRankingLoss(nn.Module):
-
     def __init__(self, margin=0.4, fix_norm=True):
         super().__init__()
         self.fix_norm = fix_norm
@@ -371,8 +403,8 @@ class AdaptiveMaxMarginRankingLoss(nn.Module):
         self.margin = margin
 
     def forward(self, outputs, weight=None):
-        image_features = outputs['image_embed']
-        text_features = outputs['text_embed']
+        image_features = outputs["image_embed"]
+        text_features = outputs["text_embed"]
 
         all_image_features = gather_from_all(image_features)
         all_text_features = gather_from_all(text_features)
@@ -411,7 +443,4 @@ class AdaptiveMaxMarginRankingLoss(nn.Module):
             x2_ = torch.index_select(x2, dim=0, index=keep_idx)
             max_margin = F.relu(w1_ * self.margin - (x1_ - x2_))
 
-        return {
-            'loss': max_margin.mean(),
-            'max_margin_loss': max_margin.mean()
-        }
+        return {"loss": max_margin.mean(), "max_margin_loss": max_margin.mean()}

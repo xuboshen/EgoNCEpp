@@ -5,10 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import pdb
+import pickle
+
 import torch
 import torch.nn.functional as F
 from torch import nn
-import pickle
+
 
 class NormSoftmaxLoss(nn.Module):
     def __init__(self, temperature=0.05):
@@ -17,9 +19,9 @@ class NormSoftmaxLoss(nn.Module):
         self.temperature = temperature
 
     def forward(self, x):
-        "Assumes input x is similarity matrix of N x M \in [-1, 1], computed using the cosine similarity between normalised vectors"
-        i_logsm = F.log_softmax(x/self.temperature, dim=1)
-        j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
+        "Assumes input x is similarity matrix of N x M in [-1, 1], computed using the cosine similarity between normalised vectors"
+        i_logsm = F.log_softmax(x / self.temperature, dim=1)
+        j_logsm = F.log_softmax(x.t() / self.temperature, dim=1)
 
         # sum over positives
         idiag = torch.diag(i_logsm)
@@ -28,7 +30,8 @@ class NormSoftmaxLoss(nn.Module):
         jdiag = torch.diag(j_logsm)
         loss_j = jdiag.sum() / len(jdiag)
 
-        return - loss_i - loss_j, self.temperature
+        return -loss_i - loss_j, self.temperature
+
 
 class EgoNCE(nn.Module):
     def __init__(self, temperature=0.05, noun=True, verb=True):
@@ -48,19 +51,18 @@ class EgoNCE(nn.Module):
         else:
             mask = mask_diag
 
-        "Assumes input x is similarity matrix of N x M \in [-1, 1], computed using the cosine similarity between normalised vectors"
-        i_sm = F.softmax(x/self.temperature, dim=1)
-        j_sm = F.softmax(x.t()/self.temperature, dim=1)
+        "Assumes input x is similarity matrix of N x M in [-1, 1], computed using the cosine similarity between normalised vectors"
+        i_sm = F.softmax(x / self.temperature, dim=1)
+        j_sm = F.softmax(x.t() / self.temperature, dim=1)
 
         mask_bool = mask > 0
-        idiag = torch.log(torch.sum(i_sm * mask_bool, dim=1) )
+        idiag = torch.log(torch.sum(i_sm * mask_bool, dim=1))
         loss_i = idiag.sum() / len(idiag)
 
-        jdiag = torch.log(torch.sum(j_sm * mask_bool, dim=1) )
+        jdiag = torch.log(torch.sum(j_sm * mask_bool, dim=1))
         loss_j = jdiag.sum() / len(jdiag)
-        return - loss_i - loss_j, mask_bool, self.temperature
-        #return - loss_i - loss_j
-
+        return -loss_i - loss_j, mask_bool, self.temperature
+        # return - loss_i - loss_j
 
 
 class Hal_SoftmaxLoss_t2v(nn.Module):
@@ -70,37 +72,38 @@ class Hal_SoftmaxLoss_t2v(nn.Module):
         self.temperature = temperature
 
     def forward(self, x, hal_x, mask_n):
-        "Assumes input x is similarity matrix of N x N \in [-1, 1], computed using the cosine similarity between normalised vectors"
-        "        input hal_x is                  10*N x N \in [-1, 1]"
+        "Assumes input x is similarity matrix of N x N in [-1, 1], computed using the cosine similarity between normalised vectors"
+        "        input hal_x is                  10*N x N in [-1, 1]"
         mask_diag = torch.eye(x.shape[0]).cuda()
         if self.noun:
             mask = mask_n + mask_diag
-        i_sm = F.softmax(x/self.temperature, dim=1)
+        i_sm = F.softmax(x / self.temperature, dim=1)
         # j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
         # sum over positives
         mask_bool = mask > 0
         i_mask = torch.zeros(i_sm.shape).to(mask_bool.device) + 1e-6
-        i_mask[:mask_bool.shape[0], :mask_bool.shape[1]] = mask_bool
-        idiag = torch.log(torch.sum(i_sm * i_mask, dim=1) )
+        i_mask[: mask_bool.shape[0], : mask_bool.shape[1]] = mask_bool
+        idiag = torch.log(torch.sum(i_sm * i_mask, dim=1))
         loss_i = idiag.sum() / len(idiag)
         # jdiag = torch.diag(j_logsm)
         # loss_j = jdiag.sum() / len(jdiag)
         neg_num, video_num = hal_x.shape[0] // hal_x.shape[1], hal_x.shape[1]
         # print(hal_x.shape)
-        hal_x = torch.stack([hal_x[i * neg_num: (i + 1) * neg_num, i] for i in range(video_num)], dim=1)# neg, video_num
+        hal_x = torch.stack(
+            [hal_x[i * neg_num : (i + 1) * neg_num, i] for i in range(video_num)], dim=1
+        )  # neg, video_num
 
         # hal_x= hal_x.reshape(video_num, neg_num, video_num)[:,:,0].reshape(10, -1)
         # hal_x = torch.diagonal(hal_x.reshape(neg_num, video_num, video_num), dim1=1, dim2=2)
         x = torch.cat([x, hal_x], dim=0)
         # sum over positives
         # import pdb; pdb.set_trace()
-        j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
+        j_logsm = F.log_softmax(x.t() / self.temperature, dim=1)
         jdiag = torch.diag(j_logsm)
         loss_hal = jdiag.sum() / len(jdiag)
 
-
-        original_cont = - loss_i # - loss_j
-        loss_hal = - loss_hal
+        original_cont = -loss_i  # - loss_j
+        loss_hal = -loss_hal
         return original_cont + loss_hal
 
 
@@ -111,10 +114,10 @@ class Hal_SoftmaxLoss(nn.Module):
         self.temperature = temperature
 
     def forward(self, x, hal_x):
-        "Assumes input x is similarity matrix of N x N \in [-1, 1], computed using the cosine similarity between normalised vectors"
-        "        input hal_x is                  10*N x N \in [-1, 1]"
+        "Assumes input x is similarity matrix of N x N in [-1, 1], computed using the cosine similarity between normalised vectors"
+        "        input hal_x is                  10*N x N in [-1, 1]"
         # infonce
-        i_logsm = F.log_softmax(x/self.temperature, dim=1)
+        i_logsm = F.log_softmax(x / self.temperature, dim=1)
         # j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
         # sum over positives
         idiag = torch.diag(i_logsm)
@@ -124,25 +127,25 @@ class Hal_SoftmaxLoss(nn.Module):
 
         neg_num, video_num = hal_x.shape[0] // hal_x.shape[1], hal_x.shape[1]
         # print(hal_x.shape)
-        hal_x = torch.stack([hal_x[i * neg_num: (i + 1) * neg_num, i] for i in range(video_num)], dim=1)# neg, video_num
+        hal_x = torch.stack(
+            [hal_x[i * neg_num : (i + 1) * neg_num, i] for i in range(video_num)], dim=1
+        )  # neg, video_num
 
         # hal_x= hal_x.reshape(video_num, neg_num, video_num)[:,:,0].reshape(10, -1)
         # hal_x = torch.diagonal(hal_x.reshape(neg_num, video_num, video_num), dim1=1, dim2=2)
         x = torch.cat([x, hal_x], dim=0)
         # sum over positives
         # import pdb; pdb.set_trace()
-        j_logsm = F.log_softmax(x.t()/self.temperature, dim=1)
+        j_logsm = F.log_softmax(x.t() / self.temperature, dim=1)
         jdiag = torch.diag(j_logsm)
         loss_hal = jdiag.sum() / len(jdiag)
 
-
-        original_cont = - loss_i # - loss_j
-        loss_hal = - loss_hal
+        original_cont = -loss_i  # - loss_j
+        loss_hal = -loss_hal
         return original_cont + loss_hal
 
 
 class MaxMarginRankingLoss(nn.Module):
-
     def __init__(self, margin=0.2, fix_norm=True):
         super().__init__()
         self.fix_norm = fix_norm
@@ -178,8 +181,8 @@ class MaxMarginRankingLoss(nn.Module):
 
         return max_margin.mean()
 
-class AdaptiveMaxMarginRankingLoss(nn.Module):
 
+class AdaptiveMaxMarginRankingLoss(nn.Module):
     def __init__(self, margin=0.4, fix_norm=True):
         super().__init__()
         self.fix_norm = fix_norm
@@ -204,7 +207,7 @@ class AdaptiveMaxMarginRankingLoss(nn.Module):
         x3 = x.transpose(0, 1).contiguous().view(-1, 1)
 
         x2 = torch.cat((x2, x3), 0)
-        max_margin = F.relu(  w1 * self.margin - (x1 - x2))
+        max_margin = F.relu(w1 * self.margin - (x1 - x2))
 
         if self.fix_norm:
             # remove the elements from the diagonal
@@ -217,9 +220,10 @@ class AdaptiveMaxMarginRankingLoss(nn.Module):
             x1_ = torch.index_select(x1, dim=0, index=keep_idx)
             w1_ = torch.index_select(w1, dim=0, index=keep_idx)
             x2_ = torch.index_select(x2, dim=0, index=keep_idx)
-            max_margin =  F.relu( w1_ * self.margin - (x1_ - x2_))
+            max_margin = F.relu(w1_ * self.margin - (x1_ - x2_))
 
         return max_margin.mean()
+
 
 class CrossEntropy(nn.Module):
     def __init__(self):

@@ -20,7 +20,7 @@ def egomcq_accuracy_metrics(preds, labels, types):
                 if pred_.item() == label.item():
                     correct += 1
                 total += 1
-        accuracy = correct/total
+        accuracy = correct / total
         metrics[group_i] = accuracy * 100
     return metrics
 
@@ -38,20 +38,22 @@ def egomcqv2t_accuracy_metrics(preds, labels, types):
                 if pred_.item() == label.item():
                     correct += 1
                 total += 1
-        accuracy = correct/total
+        accuracy = correct / total
         metrics[group_i] = accuracy * 100
     return metrics
+
 
 def egohoi_accuracy_metrics(preds):
     metrics = {}
     group_list = ["Verb", "Noun", "Verb and noun"]
-    import pdb;
+    import pdb
+
     # verb
     correct = 0
     total = 0
     for pred in preds:
         neg_num = (len(pred) - 1) // 2
-        res = pred[:neg_num + 1]
+        res = pred[: neg_num + 1]
         label = torch.argmax(res).item()
         if label == 0:
             correct += 1
@@ -59,13 +61,12 @@ def egohoi_accuracy_metrics(preds):
     acc = correct * 1.0 / total
     metrics[group_list[0]] = acc * 100
 
-
-    # noun 
+    # noun
     correct = 0
     total = 0
     for pred in preds:
         neg_num = (len(pred) - 1) // 2
-        res = torch.cat((pred[0].unsqueeze(0), pred[neg_num + 1:]))
+        res = torch.cat((pred[0].unsqueeze(0), pred[neg_num + 1 :]))
         label = torch.argmax(res).item()
         if label == 0:
             correct += 1
@@ -73,8 +74,7 @@ def egohoi_accuracy_metrics(preds):
     acc = correct * 1.0 / total
     metrics[group_list[1]] = acc * 100
 
-
-    # verb and noun  
+    # verb and noun
     correct = 0
     total = 0
     for pred in preds:
@@ -86,7 +86,6 @@ def egohoi_accuracy_metrics(preds):
         total += 1
     acc = correct * 1.0 / total
     metrics[group_list[2]] = acc * 100
-
 
     # for type_i, group_i in zip(type_list, group_list):
     #     correct = 0
