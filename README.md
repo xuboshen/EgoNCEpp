@@ -1,11 +1,11 @@
 <h1 align="center">
-  EgoNCE++: Do Egocentric Video-Language Models Really Understand Hand-Object Interactions?
+  Do Egocentric Video-Language Models Truly Understand Hand-Object Interactions?
 </h1>
 
 
 <figure align="center" style="width: 100%;">
-  <img src="assets/figs/performance.png" alt="performance" style="width: 90%; display: block; margin: auto;">
-  <figcaption> LaViLa pretrained using EgoNCE++ achieves remarkable improvements on six benchmarks, meanwhile EgoNCE++ universally enhances recognition ability on EgoHOIBench across EgoVLMs</figcaption>
+  <img src="assets/figs/motivation.jpg" alt="performance" style="width: 90%; display: block; margin: auto;">
+  <figcaption> Although EgoVLMs have been pretrained on millions of worldwide egocentric videos and applied to challenging downstream tasks like video-text retrieval, we observe that they often fail to select the matched sentence from the simplest word substituted candidates for videos. </figcaption>
 </figure>
 
 ## Table of Contents
@@ -18,16 +18,70 @@
 
 ## Overview
 
-(1) We developed EgoHOIBench, a benchmark specifically designed to evaluate models' capabilities in fine-grained and open-vocabulary EgoHOI comprehension.
+(1) We develop **EgoHOIBench**, a novel benchmark specifically designed to evaluate EgoVLMs' capabilities in understanding variations of HOI combination.
 
-(2) We propose EgoNCE++, an innovative HOI-aware asymmetric contrastive learning objective for egocentric video-language pretraining.
+(2) We propose **EgoNCE++**, an innovative HOI-aware asymmetric contrastive learning objective for egocentric video-language pretraining.
 
-(3) Our experimental results demonstrate that EgoNCE++ can be applied to various EgoVLMs, notably improving generalization across six downstream EgoHOI tasks, especially in zero-shot settings.
+(3) Our experimental results demonstrate the versatility and efficacy of EgoNCE++, notably enhancing performance across three EgoVLMs and improving generalization on seven downstream EgoHOI tasks.
+
+## Implementation Difference between EgoNCE++ and InfoNCE
+
+
+<figure align="center" style="width: 100%;">
+  <img src="assets/figs/framework.jpg" alt="performance" style="width: 90%; display: block; margin: auto;">
+  <figcaption>  </figcaption>
+</figure>
+
+EgoNCE++ can be implemented with ease.
+
+```python
+class EgoNCEpp(nn.Module):
+    def __init__(self, temperature=0.05):
+        super().__init__()
+        self.temperature = temperature
+    def forward(self, video_embeds, pos_txt, neg_txt=None, n_embeds=None):
+        pos_sim = sim_matrix(pos_txt, video_embeds)
+++      if neg_txt is not None and n_embeds is not None:
+++          sim_n = n_embeds @ n_embeds.T
+++          neg_sim = sim_matrix(neg_txt, video_embeds)
+++          return self.get_loss(pos_sim, neg_sim, sim_n)
+++      else:
+            return self.get_loss(pos_sim)
+    def get_loss(self, pos_sim, neg_sim=None, mask_n=None):
+        '''
+        inputs:
+            pos_sim: is similarity matrix of N x N, computed using the cosine similarity between normalised vectors
+            neg_sim: is similarity matrix of (Neg_Number)*N x N
+        '''
+        mask = torch.eye(pos_sim.shape[0]).cuda()
+        # text-to-video object-centric positive sampling
+++      mask = mask_n + mask
+
+        i_sm = F.softmax(pos_sim / self.temperature, dim=1)
+        mask_bool = mask > 0
+        i_mask = torch.zeros(i_sm.shape).to(mask_bool.device) + 1e-6
+        i_mask[:mask_bool.shape[0], :mask_bool.shape[1]] = mask_bool
+        idiag = torch.log(torch.sum(i_sm * i_mask, dim=1))
+        loss_t2v = idiag.sum() / len(idiag)
+
+        # video-to-text HOI-aware negative generation
+++      if neg_sim is not None:
+++          neg_num, video_num = neg_sim.shape[0] // neg_sim.shape[1], neg_sim.shape[1]
+++          neg_sim = torch.stack([neg_sim[i * neg_num: (i + 1) * neg_num, i] for i in range(video_num)], dim=1)
+
+++          pos_sim = torch.cat([pos_sim, neg_sim], dim=0)
+        j_logsm = F.log_softmax(pos_sim.t()/self.temperature, dim=1)
+        jdiag = torch.diag(j_logsm)
+        loss_v2t = jdiag.sum() / len(jdiag)
+
+        return - loss_t2v - loss_v2t
+
+```
+
 
 ## Installation
 
-The environment depends on the pretrained models. 
-We organize all possible preparations in [INSTALL.md](docs/INSTALL.md) according to the codebases.
+The environment depends on the pretrained EgoVLM, see corresponding installation docs. 
 
 
 ## Datasets
@@ -46,7 +100,7 @@ EgoHOIBench includes ~29K videos and ~609K text options.
 The annotations can be found in [EgoHOIBench-anonymous](https://www.dropbox.com/scl/fo/d14p2yv3r5qww5xhif43k/ADt5Or05GJ2Y8BhuvTht1Jg?rlkey=dd1mec089j7alilz0df54t4wf&st=b47ake0n&dl=0)
 
 <figure align="center" style="width: 100%;">
-  <img src="assets/figs/EgoHOIBench_sbr_comparisons.png" alt="performance" style="width: 90%; display: block; margin: auto;">
+  <img src="assets/figs/EgoHOIBench_performance.png" alt="performance" style="width: 90%; display: block; margin: auto;">
   <figcaption> Illustration of EgoHOIBench and the performance drop on our benchmark.</figcaption>
 </figure>
 
@@ -54,6 +108,13 @@ The annotations can be found in [EgoHOIBench-anonymous](https://www.dropbox.com/
 
 MODEL++ denotes using EgoNCE++ to continue to pretrain the original MODEL.
 
+<figure align="center" style="width: 100%;">
+  <img src="assets/figs/radar.jpg" alt="performance" style="width: 90%; display: block; margin: auto;">
+  <figcaption> Overview of experimental results. </figcaption>
+</figure>
+
+
+<!-- 
 <table class="tg"><thead>
   <tr>
     <th class="tg-af47" rowspan="2"><span style="font-weight:normal">Models　</span><br><span style="font-weight:normal">　</span></th>
@@ -123,4 +184,9 @@ MODEL++ denotes using EgoNCE++ to continue to pretrain the original MODEL.
     <td class="tg-f39b">32.3</td>
     <td class="tg-f39b">TBD</td>
   </tr>
-</tbody></table>
+</tbody></table> -->
+
+## Acknowledgement
+
+We are grateful for the following projects:
+EgoVLP, EgoVLPv2, LaViLa, where we build our EgoNCE++ upon.
