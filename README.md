@@ -2,17 +2,12 @@
   Do Egocentric Video-Language Models Truly Understand Hand-Object Interactions?
 </h1>
 
-<center>
-  <img src="assets/figs/motivation.jpg" alt="performance" style="width: 80%;">
-  <figcaption>Although EgoVLMs have been pretrained on millions of worldwide egocentric videos and applied to challenging downstream tasks like video-text retrieval, we observe that they often fail to select the matched sentence from the simplest word substituted candidates for videos.</figcaption>
-</center>
-<!-- 
-<center>
-<figure align="center" style="width: 100%;">
-  <img src="assets/figs/motivation.jpg" alt="performance" style="width: 80%; display: block; margin: auto;">
-  <figcaption> Although EgoVLMs have been pretrained on millions of worldwide egocentric videos and applied to challenging downstream tasks like video-text retrieval, we observe that they often fail to select the matched sentence from the simplest word substituted candidates for videos. </figcaption>
-</figure>
-</center> -->
+
+<p align="center" width="100%">
+<a target="_blank"><img src="assets/figs/motivation.jpg" alt="motivation" style="width: 80%; min-width: 200px; display: block; margin: auto;"></a>
+</p>
+
+Although EgoVLMs have been pretrained on millions of worldwide egocentric videos and applied to challenging downstream tasks like video-text retrieval, we observe that they often fail to select the matched sentence from the simplest word substituted candidates for videos.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -33,10 +28,9 @@
 ## Implementation Difference between EgoNCE++ and InfoNCE
 
 
-<figure align="center" style="width: 100%;">
-  <img src="assets/figs/framework.jpg" alt="performance" style="width: 70%; display: block; margin: auto;">
-  <figcaption>  </figcaption>
-</figure>
+<p align="center" width="100%">
+<a target="_blank"><img src="assets/figs/framework.jpg" alt="framework" style="width: 80%; min-width: 200px; display: block; margin: auto;"></a>
+</p>
 
 EgoNCE++ can be implemented with ease.
 
@@ -105,10 +99,11 @@ EgoHOIBench includes ~29K videos and ~609K text options.
 
 The annotations can be found in [EgoHOIBench-anonymous](https://www.dropbox.com/scl/fo/d14p2yv3r5qww5xhif43k/ADt5Or05GJ2Y8BhuvTht1Jg?rlkey=dd1mec089j7alilz0df54t4wf&st=b47ake0n&dl=0)
 
-<figure align="center" style="width: 100%;">
-  <img src="assets/figs/EgoHOIBench_performance.png" alt="performance" style="width: 50%; display: block; margin: auto;">
-  <figcaption> Illustration of EgoHOIBench and the performance drop on our benchmark.</figcaption>
-</figure>
+
+
+<p align="center" width="100%">
+<a target="_blank"><img src="assets/figs/EgoHOIBench_performance.png" alt="EgoHOIBench" style="width: 50%; min-width: 200px; display: block; margin: auto;"></a>
+</p>
 
 ## Training
 
@@ -118,10 +113,12 @@ We provide our training log of EgoVLMs under [EgoVLP_train_log](assets/train_log
 
 MODEL++ denotes using EgoNCE++ to continue to pretrain the original MODEL.
 
-<figure align="center" style="width: 100%;">
-  <img src="assets/figs/radar.jpg" alt="performance" style="width: 70%; display: block; margin: auto;">
-  <figcaption> Overview of experimental results. </figcaption>
-</figure>
+Overview of experimental results:
+<p align="center" width="100%">
+<a target="_blank"><img src="assets/figs/radar.jpg" alt="overview performance" style="width: 70%; min-width: 200px; display: block; margin: auto;"></a>
+</p>
+
+
 
 
 <!-- 
