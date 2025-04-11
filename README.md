@@ -197,3 +197,16 @@ Overview of experimental results:
 
 We are grateful for the following projects:
 EgoVLP, EgoVLPv2, LaViLa, where we build our EgoNCE++ upon.
+
+## Citation
+
+```bibtex
+@inproceedings{
+xu2025do,
+title={Do Egocentric Video-Language Models Truly Understand Hand-Object Interactions?},
+author={Boshen Xu and Ziheng Wang and Yang Du and Zhinan Song and Sipeng Zheng and Qin Jin},
+booktitle={The Thirteenth International Conference on Learning Representations},
+year={2025},
+url={https://openreview.net/forum?id=M8gXSFGkn2}
+}
+```
